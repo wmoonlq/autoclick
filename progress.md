@@ -1,43 +1,51 @@
-# outoclick MVP 构建进度
+# outoclick 构建进度
 
-- 开始时间：2026-11-22
-- 完成时间：2026-11-22
-- 目标：按 SPEC v0.3 的 MVP 范围交付可运行版本
-- 环境：Windows 11 / Python 3.13 / PySide6 / Pillow / pytest；adb 未安装（用 MockTransport 验证）
+- 更新：2026-11-22
+- 主交付物：**Android 独立 App**（`android/`）
+- 仓库：https://github.com/wmoonlq/autoclick
 
-## 步骤
+## 已完成
 
-| # | 步骤 | 状态 |
+| 模块 | 内容 | 状态 |
 |---|---|---|
-| 1 | 环境探测、依赖安装（PySide6 / pytest / Pillow） | 完成 |
-| 2 | core：paths / errors / imageops / 坐标换算 | 完成 |
-| 3 | core：AdbTransport + MockTransport + 注入自检 | 完成 |
-| 4 | core：设备档案 + 三向一致性校验 + 可逆控件校准 | 完成 |
-| 5 | core：脚本模型 + 校验 + 模板 | 完成 |
-| 6 | core：执行引擎 + 日志 + 单实例回环 socket | 完成 |
-| 7 | UI：主窗口 / 画布拾取 / 步骤编辑 / HUD / 热键 | 完成 |
-| 8 | CLI：list / selftest / run / demo / status / stop | 完成 |
-| 9 | 测试：coords / script / engine / transport / profile | 完成（29 项全绿） |
-| 10 | 本地验证 + 文档 + git commit | 完成 |
+| Android 工程 | Gradle 8.13 + AGP 8.9.2 + Kotlin 2.0.21，minSdk 26 / compile+target 36 | 完成 |
+| 脚本模型 | 点击/长按/滑动/等待，延时、循环、启用开关，JSON 本机存储 | 完成 |
+| 手势执行 | `AccessibilityService.dispatchGesture`，10s 超时保护 | 完成 |
+| 悬浮控制 | 悬浮球、开始/暂停/停止、状态、前台通知 | 完成 |
+| 取点 | 可拖动十字准星，记录点击/滑动起点终点 | 完成 |
+| 界面 | 权限引导、脚本列表、步骤编辑、剪贴板导入导出 | 完成 |
+| 构建 | `app-debug.apk`（约 3.3 MB） | 完成 |
+| 实机验证 | Pixel 5 模拟器 Android 17 / API 37：安装、无障碍手势、悬浮球、取点、运行、暂停/停止 | 通过 |
+| 文档 | Android README + 三张截图；PC 原型归档到 `docs/PC-PROTOTYPE.md` | 完成 |
 
-## 验证结果
+## 验证记录
 
-- `python -m pytest -q` → 29 passed
-- `python -m app.cli --mock --run <demo>` → 6 步全成功，assertPixel 2/2
-- GUI 冒烟：模拟设备截图、步骤表、运行、HUD、日志 → 通过
-- GUI 常驻时 CLI 投递：`--run` 返回 `ok 6/0`，`--status` 可查上次结果
-- 全局热键：本机 F12 被其他程序占用，自动降级 F11 并生效
-- 截图：`docs/screenshot.png`
+- `adb install -r app-debug.apk` → Success
+- 无障碍服务绑定：`capabilities=32`（可执行手势）
+- 悬浮球 + 面板 + 准星取点 → 正常
+- 准星记录 → 脚本 JSON 新增 `TAP (540,1170)` → 正常
+- 运行 4 步脚本 → 面板显示 `1/1 轮 · 2/4` → 完成
+- 暂停/停止按钮 → 状态切换正常
+- `logcat -s AndroidRuntime:E` → 无崩溃
+
+## 构建命令
+
+```powershell
+$env:JAVA_HOME='D:\JDKSS\Jdks\jdk-21.0.12.1+1'
+$env:ANDROID_HOME='E:\AndroidSdk'
+cd E:\outoclick\android
+E:\gradle\gradle-8.13\bin\gradle.bat assembleDebug
+```
+
+产物：`android/app/build/outputs/apk/debug/app-debug.apk`
 
 ## 已知限制
 
-- 未打包 exe；未接真实设备（无 adb）
-- 曲线滑动 / 投屏 / 录制 / 找图 / 百分比可视化编辑不在 MVP
-- 计划任务仅 CLI + 系统 schtasks，需「仅在用户登录时运行」
+- 固定坐标；改版/换分辨率需重新取点
+- 仅竖屏；无图像识别；无录制
+- debug 签名，正式分发需自建 keystore
+- 厂商省电策略可能杀后台，建议加电池白名单
 
-## 关键命令
+## 历史
 
-- 安装：`python -m pip install -r requirements.txt`
-- 启动 GUI：`python -m app.main`（无 adb 时自动进入模拟设备模式）
-- 无界面运行：`python -m app.cli --mock --run scripts/demo_signin.json`
-- 测试：`python -m pytest -q`
+- 2026-11-21：先做了 Windows + ADB 的 PC 原型（`app/`、`SPEC.md`），已归档，不再作为主交付物。
