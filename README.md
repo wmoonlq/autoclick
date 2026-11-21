@@ -1,186 +1,178 @@
-# outoclick · 安卓自动点击器（MVP）
+# outoclick · 安卓自动点击器
 
-用 Windows 电脑通过 ADB 驱动一台 Android 设备，按**固定坐标**回放预设的点击序列。手机端不装 App、不开无障碍、不 Root，只开 USB 调试。
+独立 Android App：在手机上预设固定坐标的点击序列，由无障碍服务回放。
+**不需要电脑、不需要 ADB、不需要 Root。**
 
-> 当前是 MVP：核心链路（截图拾取 → 脚本 → 校验 → 执行 → 日志）已跑通，并内置一台模拟设备，没手机也能完整体验。
+> 当前版本：MVP `0.1.0`（debug APK），已在 Pixel 5 模拟器 **Android 17 / API 37** 实测：安装、无障碍手势、悬浮球、取点、脚本运行、暂停/停止均通过。
 
 ## 截图
 
-![界面](docs/screenshot.png)
+| 主界面 | 悬浮面板 | 准星取点 |
+|---|---|---|
+| ![主界面](docs/android-main.png) | ![悬浮面板](docs/android-panel.png) | ![取点](docs/android-pick.png) |
 
-## 已实现（MVP 范围）
+## 能做什么
 
-- 设备发现、授权状态提示、无线调试连接（人工调试用）
-- 注入能力自检（`INJECT_EVENTS` / usage 探测）、屏幕唤醒与锁屏检查
-- 设备档案：`wm size` + `screencap` 尺寸 + 宽高比校验，不一致**拒绝运行**
-- 截图 / 缩放 / 平移 / 1px 微调 / 步骤落点叠加
-- 动作：`tap`、`longPress`、`swipe`、`wait`、`key`、`text`（ASCII）、`launchApp`、`stopApp`、`screenshot`、`assertPixel`、`note`、`group`（循环）
-- 逐步延时 + 随机抖动 + 点击随机偏移 + 失败策略（abort/retry/continue/pause）
-- 暂停 / 继续 / 急停（全局热键，F12 被占用时自动降级到 F11/F10/F9/F8）
-- 置顶 HUD + 托盘级控制（PC 侧的「悬浮球」替代）
-- 运行日志 JSONL、失败截图、运行摘要；保留最近 50 次
-- 脚本 JSON 存取、导入导出、单步试跑、从选中步骤运行
-- 单实例：GUI 常驻时 CLI 通过本地回环 socket 投递任务并取回结果
-- 模拟设备：完整可交互的假屏幕，支持开关/任务/完成按钮与像素校验
+- **悬浮准星取点**：打开目标 App，拖动十字准星到按钮上，点「记录」即生成一步坐标
+- **脚本编排**：点击 / 长按 / 滑动 / 等待；每步可设延时、启用状态；脚本可循环 N 次
+- **悬浮球控制**：开始 / 暂停 / 继续 / 停止；切到任何 App 都能操作
+- **本机存储**：脚本是纯 JSON，支持复制、删除、剪贴板导入导出
+- **前台服务**：运行状态常驻通知，避免被系统随手回收
+- **深色界面**：手机端原生 View，无第三方 UI 框架
 
-## 暂未实现（按 SPEC v0.3 的后续里程碑）
+## 快速开始
 
-- 图像模板匹配 / OCR / 控件定位（v2）
-- 多指手势、贝塞尔曲线滑动（需 scrcpy 控制通道或 minitouch）
-- `getevent` 录制、找色、`waitStable`、百分比坐标的可视化编辑（v1.2）
-- 计划任务 UI（现在可用 `schtasks`，但必须「仅在用户登录时运行」）
-- 打包 exe（现在直接用 Python 运行）
-
-## 环境
-
-- Windows 10/11 x64
-- Python 3.13（3.10+ 应该也可以）
-- Android Platform-Tools（`adb`）——**未内置**，需要单独下载
-- 手机：Android 7.0+，开启「开发者选项 → USB 调试」
-  - 小米/红米：还必须开启「USB 调试（安全设置）」，否则 `input` 会抛 `INJECT_EVENTS`
-
-## 快速开始（无需手机）
+### 直接安装 APK
 
 ```powershell
-cd E:\outoclick
-python -m pip install -r requirements.txt
-python -m app.main
+adb install -r android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
-启动后设备下拉框里会有 **Mock Phone**。点「演示模板」会自动生成一条脚本：
+或者把 APK 拷到手机上手动安装（需要允许「安装未知来源应用」）。
 
-1. 打开 AUTO MODE 开关
-2. `assertPixel` 校验开关变绿
-3. 完成任务 A 并再次校验
-4. 点击 FINISH
+### 从源码构建
 
-点「▶ 运行」即可看到 HUD、进度、逐步日志和运行摘要。
+前置：
 
-命令行等价：
+- JDK 17 或 21
+- Android SDK：`platforms;android-36`、`build-tools;35.0.0+`
+- Gradle 8.13（工程没有内置 wrapper）
 
 ```powershell
-python -m app.cli --make-demo
-python -m app.cli --mock --run "$env:USERPROFILE\Documents\AutoClickAndroid\scripts\演示：开关与任务.json"
+$env:JAVA_HOME='D:\JDKSS\Jdks\jdk-21.0.12.1+1'
+$env:ANDROID_HOME='E:\AndroidSdk'
+cd android
+E:\gradle\gradle-8.13\bin\gradle.bat assembleDebug
 ```
 
-## 连接真机
+`android/local.properties` 里的 `sdk.dir` 指向你的 SDK 目录（该文件已被 gitignore）。
 
-1. 下载并解压 [Android Platform-Tools](https://developer.android.com/tools/releases/platform-tools)。
-2. 手机开启 USB 调试，插线；手机上点「允许 USB 调试」。
-3. 启动 outoclick → 「设置」里选择 `adb.exe`，或直接点「刷新」自动查找。
-4. 选择设备 → 「自检」：
-   - 注入能力 OK
-   - `wm size` 与截图尺寸一致
-   - 屏幕已唤醒、未锁屏
-5. 「截图」→ 在画布上点击目标位置即可新增点击步骤。
-
-> 如果自检报告 `INJECT_EVENTS`：按提示去开发者选项打开「USB 调试（安全设置）」。部分小米机型需要登录账号、插 SIM 并重启，且存在账号级开启配额。
-
-## 界面工作流
-
-| 动作 | 说明 |
-|---|---|
-| 画布单击 | 新增一个 `tap` 步骤（坐标 = 当前设备像素） |
-| 选中步骤 → 「取点」 | 重新指定目标坐标；`swipe` 需要点起点、再点终点 |
-| 选中步骤 | 右侧编辑延时、抖动、偏移、失败策略、颜色校验等 |
-| 时间线 | 上移/下移/复制/删除；双击不做编辑，统一在右侧表单改 |
-| 单步试跑 | 只执行当前选中的顶层步骤 |
-| ▶ 运行 | 先保存脚本，再做完整校验，最后顺序执行 |
-| F12（或实际热键） | 任意时刻急停；最多等待 1 个在途动作返回 |
-| 暂停 | 不再下发新指令；延时等待会被冻结 |
-
-## 命令行
-
-```powershell
-python -m app.cli --list-devices          # 列出设备（含模拟设备）
-python -m app.cli --selftest              # 对当前/指定设备做自检
-python -m app.cli --selftest --device emulator-5554
-python -m app.cli --make-demo             # 生成模拟演示脚本
-python -m app.cli --mock --run <脚本>      # 无界面运行
-python -m app.cli --status                # 查看 GUI/运行状态
-python -m app.cli --stop                  # 请求 GUI 急停
-```
-
-- GUI 没打开时：`--run` 直接在当前进程执行，日志照常落盘。
-- GUI 已打开时：CLI 通过 `127.0.0.1:47821` 投递任务，并轮询到运行结束返回结果码。
-- `--run` 支持脚本路径、文件名或脚本 id 的模糊匹配（按文件名）。
-
-## 数据目录
-
-`%USERPROFILE%\Documents\AutoClickAndroid\`
+产物：
 
 ```
-profiles.json          # 设备档案（serial / 分辨率 / 密度 / 校准状态）
-scripts\<id>.json      # 用户脚本
-logs\<runId>\log.jsonl # 逐步 JSONL 日志
-logs\<runId>\summary.md
-logs\<runId>\fail_*.png
-settings.json          # adb 路径、上次设备、窗口大小
+android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-调试时可覆盖：`$env:OUTOCLICK_DATA='E:\tmp\outoclick-data'`。
+## 使用流程
 
-## 安全设计（MVP 已生效）
+1. 打开 App，在「准备」卡片里依次开启：
+   - **无障碍服务**：设置 → 无障碍 → 已下载的应用 → outoclick 点击执行器
+   - **悬浮窗**：允许显示在其他应用上层
+   - **通知**（Android 13+）：前台服务状态
+2. 在「脚本」里新建，或直接用自带的示例脚本。
+3. 点「启动悬浮窗」，App 会退到后台，屏幕上出现 **OC** 悬浮球。
+4. 切到目标 App，点悬浮球 →「取点」：
+   - 拖动准星到目标位置 →「记录点击」
+   - 记录滑动：先把准星放到起点 →「起点」→ 移动到终点 →「终点」
+5. 需要运行脚本时，点悬浮球 →「开始」。运行中可暂停、继续、停止。
+6. 回到 App 可以微调每一步的坐标、时长、延时和循环次数。
 
-1. **三向校验**：`wm size`、截图尺寸、宽高比任一不符 → 拒绝运行（不做自动裁剪/猜测）。
-2. **注入自检**：开跑前确认 `input tap` 可用；被 ROM 拒绝时给出明确指引。
-3. **屏幕状态检查**：熄屏/锁屏时注入会被系统吞掉且返回 0，因此开跑前强制检查。
-4. **到位判定**：`input tap` 本身没有反馈，关键节点请配 `assertPixel`；这也是唯一的「点到了」证据。
-5. **急停粒度**：一次 adb 调用只做一个动作，急停最多等待 1 个在途动作；停止后不做任何补偿点击。
-6. **无批处理**：MVP 故意不做多动作批处理，避免「急停要等整批跑完」。
-7. **失败留证**：失败步骤自动截图，日志记录期望/实际颜色与耗时。
+## 脚本格式
 
-## 开发与测试
+每台手机本地保存为 `files/scripts/<id>.json`，也可以从 App 导出到剪贴板：
 
-```powershell
-python -m pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest -q
+```json
+{
+  "schemaVersion": 1,
+  "id": "a1b2c3d4e5",
+  "name": "每日签到",
+  "repeat": 1,
+  "steps": [
+    { "type": "TAP", "x": 540, "y": 1200, "durationMs": 60, "delayAfterMs": 800, "enabled": true },
+    { "type": "LONG_PRESS", "x": 300, "y": 900, "durationMs": 800, "delayAfterMs": 300, "enabled": true },
+    { "type": "SWIPE", "x": 540, "y": 1800, "x2": 540, "y2": 900, "durationMs": 300, "delayAfterMs": 300, "enabled": true },
+    { "type": "WAIT", "durationMs": 1500, "delayAfterMs": 0, "enabled": true }
+  ]
+}
 ```
 
-当前 29 个测试，覆盖：
+坐标是**屏幕物理像素**，原点在左上角。
 
-- 坐标缩放、比例失真、越界（永不裁剪）、百分比换算
-- 脚本校验（越界、重复 id、非 ASCII、分组展开、版本兼容）
-- 模拟设备截图/点击/开关状态
-- 档案一致性与可逆控件校准
-- 执行引擎：完整跑通、急停、失败继续、坐标非法时零点击
+## 权限与安全
 
-## 目录结构
+| 权限 | 用途 | 是否读取内容 |
+|---|---|---|
+| 无障碍服务 | 通过 `dispatchGesture` 注入点击/滑动 | 否，`canRetrieveWindowContent=false` |
+| 悬浮窗 | 悬浮球 + 准星取点 | 否 |
+| 通知 | 前台服务状态 | 否 |
+
+- 所有脚本与运行状态只存在本机，App 不联网。
+- 无障碍服务只做手势注入，不读取屏幕内容，不上传任何数据。
+- 停止是「不再派发下一步」，已经在执行的一次手势（通常 60–800ms）会自然结束，不会补点。
+
+## 原理
 
 ```
-app/
-├─ main.py              # GUI 入口（含深色 QSS）
-├─ cli.py               # 命令行入口
-├─ core/
-│  ├─ transport.py      # BaseTransport / AdbTransport / MockTransport
-│  ├─ coords.py         # 坐标换算（拒绝越界，不裁剪）
-│  ├─ profile.py        # 档案、三向校验、可逆控件校准
-│  ├─ script_model.py   # 脚本模型、校验、展开、模板
-│  ├─ engine.py         # 状态机、执行、暂停/急停、失败策略
-│  ├─ logger.py         # JSONL 日志、摘要、截图、保留策略
-│  ├─ ipc.py            # 单实例 + CLI 投递（127.0.0.1:47821）
-│  └─ paths.py / config.py / errors.py / imageops.py
-├─ ui/
-│  ├─ main_window.py    # 三栏主界面 + 运行面板
-│  ├─ canvas_picker.py  # 截图缩放/平移/取点/落点标记
-│  ├─ hud.py            # 置顶控制条
-│  └─ hotkey.py         # Win32 RegisterHotKey（含降级）
-└─ resources/
+MainActivity        脚本列表 / 步骤编辑 / 权限引导
+OverlayService      悬浮球、面板、准星、前台通知
+ClickAccessibilityService   dispatchGesture(TAP / LONG_PRESS / SWIPE)
+Runner              协程顺序执行，循环、延时、暂停/停止
+ScriptStore         filesDir/scripts/*.json
 ```
+
+- 点击：`GestureDescription.StrokeDescription(path, 0, 60ms)`
+- 长按：同点，时长 800ms
+- 滑动：`moveTo → lineTo`，默认 300ms
+- 等待：`delay(ms)`，可被暂停/停止打断
+- 运行循环：`delayAfterMs` 在每步之后执行
 
 ## 已知限制
 
-- 画布坐标按 **设备物理像素** 存储；换分辨率会按比例换算，但宽高比差异 >2% 直接拒绝。
-- 只支持竖屏（rotation 0）；横屏/折叠屏/多屏需要 v1.2 的旋转换算。
-- 百分比坐标脚本可以运行，但 MVP 界面只能编辑绝对值（JSON 里可改）。
-- `text` 仅 ASCII；中文需要 ADBKeyBoard（未做）。
-- 全局热键默认 F12；本机被其他程序占用时会自动改用 F11，界面和日志会显示实际键位。
-- 计划任务必须勾选「仅在用户登录时运行」，否则 Session 0 里没有桌面，任务会「成功但什么都没做」。
-- `FLAG_SECURE` 页面（银行/支付）截图全黑，拾取和 `assertPixel` 都不可用。
+- **固定坐标**：目标 App 改版、换分辨率、改字体大小后需要重新取点。
+- **仅竖屏**：暂不处理旋转后的坐标换算。
+- **无图像识别**：不会「找按钮」，只按坐标点。
+- **息屏/锁屏**：无障碍手势在锁屏状态下无法操作目标 App。
+- **系统安全界面**：部分系统弹窗、安全键盘、支付类页面可能拒绝注入。
+- **厂商保活**：MIUI / HyperOS / ColorOS 等可能杀后台，建议把 App 加入电池白名单。
+- **反作弊风险**：游戏/平台可能检测自动化操作，账号风险由使用者承担。
+
+## 项目结构
+
+```
+android/                    独立 Android 工程（主交付物）
+  app/src/main/java/com/outoclick/app/
+    MainActivity.kt         脚本列表 / 步骤编辑 / 权限引导
+    OverlayService.kt       悬浮球、面板、准星、通知
+    ClickAccessibilityService.kt  手势注入
+    Runner.kt               顺序执行 / 循环 / 暂停停止
+    Model.kt / Store.kt     脚本模型与本机 JSON 存储
+app/                        早期的 Windows + ADB 原型（Python，非主交付物）
+docs/PC-PROTOTYPE.md        PC 原型说明
+docs/FEASIBILITY-REVIEW.md  规格可行性评审
+SPEC.md                     PC 原型规格（v0.4），安卓版的约束可参考
+```
+
+## 开发
+
+```powershell
+# 只编译，不安装
+cd android
+E:\gradle\gradle-8.13\bin\gradle.bat assembleDebug
+
+# 安装并看日志
+adb install -r app\build\outputs\apk\debug\app-debug.apk
+adb logcat -s outoclick AndroidRuntime
+```
+
+调试无障碍服务时，改完代码重新安装后需要在系统设置里**关闭再打开**一次无障碍服务，服务才会绑定新版本。
+
+## 故障排查
+
+| 现象 | 处理 |
+|---|---|
+| 悬浮球不出现 | 确认「显示在其他应用上层」已允许；在 App 里重新点「启动悬浮窗」 |
+| 点「开始」没反应 | 无障碍服务未开启，或服务被系统杀掉；重新进设置开关一次 |
+| 点击位置偏移 | 坐标是屏幕物理像素；用准星重新取点，注意状态栏/手势导航区域 |
+| 运行一会儿就停 | 厂商省电策略杀掉服务；加入电池白名单，保持前台通知 |
+| 取点面板挡住目标 | 拖动悬浮球换个位置，或点「隐藏」再点球展开 |
+| 安装失败 | 确认允许未知来源；或 `adb install -r` 覆盖安装 |
+| 无障碍开关是灰的 / 提示受限 | Android 13+ 侧载应用需在「应用信息 → outoclick → 允许受限设置」后再开启无障碍 |
 
 ## 下一步
 
-1. 真机跑一遍 SPEC 附录 C 的 Spike（注入、Override 尺寸、熄屏行为）。
-2. v1.1：scrcpy 只读投屏（`--no-control`）、计划任务注册、快捷连点。
-3. v1.2：`getevent` 录制、找色、`waitStable`、旋转换算。
-4. v2：OpenCV 找图 + `uiautomator dump` 控件定位。
+- 录制模式（记录真实手指轨迹生成步骤）
+- 脚本分组循环 / 条件步骤
+- 导入导出文件（现在走剪贴板）
+- 横屏与旋转坐标换算
+- 运行日志与失败截图（需要 MediaProjection）
+- 计划任务（每天定时执行）
