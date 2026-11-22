@@ -82,9 +82,14 @@ class ScriptStore(context: Context) {
     fun overlayY(): Int = prefs.getInt(KEY_Y, -1)
     fun setOverlay(x: Int, y: Int) = prefs.edit().putInt(KEY_X, x).putInt(KEY_Y, y).apply()
 
+    fun ballVisible(): Boolean = prefs.getBoolean(KEY_BALL_VISIBLE, true)
+    fun setBallVisible(visible: Boolean) =
+        prefs.edit().putBoolean(KEY_BALL_VISIBLE, visible).apply()
+
     companion object {
         private const val KEY_ACTIVE = "active_script"
         private const val KEY_X = "overlay_x"
         private const val KEY_Y = "overlay_y"
+        private const val KEY_BALL_VISIBLE = "ball_visible"
     }
 }

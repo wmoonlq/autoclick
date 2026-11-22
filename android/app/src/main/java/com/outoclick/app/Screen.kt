@@ -19,4 +19,9 @@ object Screen {
         val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (id > 0) context.resources.getDimensionPixelSize(id) else 0
     }
+
+    fun navigationBarHeight(context: Context): Int {
+        val id = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        return if (id > 0) context.resources.getDimensionPixelSize(id) else 0
+    }
 }

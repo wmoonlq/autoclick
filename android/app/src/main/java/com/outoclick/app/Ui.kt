@@ -24,6 +24,7 @@ object Palette {
     const val GREEN = 0xFF38A169.toInt()
     const val AMBER = 0xFFF59E0B.toInt()
     const val RED = 0xFFB91C1C.toInt()
+    const val VIOLET = 0xFF8B5CF6.toInt()
 }
 
 fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

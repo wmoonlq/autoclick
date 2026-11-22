@@ -258,7 +258,7 @@ class MainActivity : AppCompatActivity() {
     private fun runCard(): LinearLayout {
         val card = card()
         card.addView(tv("悬浮控制", 16f, Palette.TEXT, bold = true))
-        card.addView(tv("启动后在任何 App 上显示悬浮球：取点、运行、暂停、停止。", 11.5f, Palette.MUTED).apply {
+        card.addView(tv("悬浮球：单击开始/暂停，长按展开面板，拖动可放任意位置（不吸边）。", 11.5f, Palette.MUTED).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -269,12 +269,17 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(44)
         ).apply { topMargin = dp(12) })
+        val arrange = btn("可视化编排（拖动点位）", Palette.CARD_2) { startVisualEditor() }
+        card.addView(arrange, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(40)
+        ).apply { topMargin = dp(8) })
         val test = btn("测试点击屏幕中心", Palette.CARD_2) { testCenterTap() }
         card.addView(test, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(40)
         ).apply { topMargin = dp(8) })
-        card.addView(tv("无障碍服务只注入手势，不读取屏幕内容，不上传数据。", 10.5f, Palette.DIM).apply {
+        card.addView(tv("编排模式会暂时收起悬浮球，把每个点位画在屏幕上，拖到哪就保存到哪。", 10.5f, Palette.DIM).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -782,15 +787,51 @@ class MainActivity : AppCompatActivity() {
             openOverlaySettings()
             return
         }
+        if (OverlayService.running) {
+            // 服务已在运行：这个按钮兼作「显示悬浮球」
+            store.setBallVisible(true)
+            runCatching {
+                startService(
+                    Intent(this, OverlayService::class.java)
+                        .setAction(OverlayService.ACTION_SHOW_BALL)
+                )
+                toast("已显示悬浮球")
+                moveTaskToBack(true)
+            }.onFailure { toast("操作失败：${it.message}") }
+            return
+        }
         if (!accessibilityOn()) {
             toast("请先开启无障碍服务")
             openAccessibility()
             return
         }
         store.setActive(current.id)
+        store.setBallVisible(true)
         runCatching {
             startForegroundService(Intent(this, OverlayService::class.java))
             toast("悬浮球已启动，切到目标 App 后点它")
+            moveTaskToBack(true)
+        }.onFailure {
+            toast("启动失败：${it.message}")
+        }
+    }
+
+    private fun startVisualEditor() {
+        val current = script
+        if (current == null) {
+            toast("请先新建脚本")
+            return
+        }
+        if (!overlayOn()) {
+            toast("请先允许悬浮窗权限")
+            openOverlaySettings()
+            return
+        }
+        store.setActive(current.id)
+        runCatching {
+            startForegroundService(
+                Intent(this, OverlayService::class.java).setAction(OverlayService.ACTION_EDIT)
+            )
             moveTaskToBack(true)
         }.onFailure {
             toast("启动失败：${it.message}")
