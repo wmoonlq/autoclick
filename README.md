@@ -3,9 +3,9 @@
 独立 Android App：在手机上预设固定坐标的点击序列，由无障碍服务回放。
 **不需要电脑、不需要 ADB、不需要 Root。**
 
-> 当前版本：MVP `0.1.0`（debug APK），已在 Pixel 5 模拟器 **Android 17 / API 37** 实测：安装、无障碍手势、悬浮球、取点、脚本运行、暂停/停止均通过。
+> 当前版本：MVP `0.2.0`（debug APK），已在 Pixel 5 模拟器 **Android 17 / API 37** 实测：可视化拖点、加点/撤销、悬浮球开始/暂停、方案切换、隐藏/恢复均通过。
 >
-> **下载 APK**：[outoclick-0.1.0-debug.apk](https://github.com/wmoonlq/autoclick/releases/download/v0.1.0/outoclick-0.1.0-debug.apk) · [Release 说明](https://github.com/wmoonlq/autoclick/releases/tag/v0.1.0)
+> **下载 APK**：[outoclick-0.2.0-debug.apk](https://github.com/wmoonlq/autoclick/releases/download/v0.2.0/outoclick-0.2.0-debug.apk) · [Release 说明](https://github.com/wmoonlq/autoclick/releases/tag/v0.2.0) · [迭代记录](CHANGELOG.md)
 
 ## 截图
 
