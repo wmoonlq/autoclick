@@ -1,4 +1,4 @@
-package com.outoclick.app
+﻿package com.outoclick.app
 
 import android.content.Context
 import android.graphics.Canvas
@@ -43,6 +43,9 @@ class VisualEditor(
     private var selectionRow: LinearLayout? = null
     private var selectionLabel: TextView? = null
     private var undoButton: AppCompatButton? = null
+    private var addRow: LinearLayout? = null
+    private var addButton: AppCompatButton? = null
+    private var addMode = false
     private val undoStack = ArrayDeque<List<Step>>()
 
     fun show(): Boolean {
@@ -112,6 +115,9 @@ class VisualEditor(
         selectionRow = null
         selectionLabel = null
         undoButton = null
+        addRow = null
+        addButton = null
+        addMode = false
     }
 
     // ------------------------------------------------------------------
@@ -119,8 +125,8 @@ class VisualEditor(
     // ------------------------------------------------------------------
     private fun topBar(): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        background = roundedRect(0xF2141B24.toInt(), context.dp(14), Palette.BORDER, context.dp(1))
-        setPadding(context.dp(12), context.dp(10), context.dp(12), context.dp(10))
+        background = roundedRect(0xF5171717.toInt(), context.dp(18), Palette.BORDER, context.dp(1))
+        setPadding(context.dp(14), context.dp(12), context.dp(14), context.dp(12))
 
         val head = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -133,7 +139,7 @@ class VisualEditor(
         undoButton = smallBtn("撤销") { undoLast() }.apply { isEnabled = false }
         head.addView(undoButton)
         head.addView(
-            smallBtn("完成", Palette.BLUE, Color.WHITE) { onExit() },
+            smallBtn("完成", Palette.PRIMARY, Palette.ON_PRIMARY) { onExit() },
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -158,7 +164,7 @@ class VisualEditor(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        legendItem(row, Palette.BLUE_LIGHT, "点击")
+        legendItem(row, Palette.GREEN, "点击")
         legendItem(row, Palette.AMBER, "长按")
         legendItem(row, Palette.VIOLET, "滑动")
         return row
@@ -179,21 +185,41 @@ class VisualEditor(
 
     private fun bottomBar(): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        background = roundedRect(0xF2141B24.toInt(), context.dp(14), Palette.BORDER, context.dp(1))
-        setPadding(context.dp(12), context.dp(9), context.dp(12), context.dp(9))
+        background = roundedRect(0xF5171717.toInt(), context.dp(18), Palette.BORDER, context.dp(1))
+        setPadding(context.dp(12), context.dp(10), context.dp(12), context.dp(10))
 
         hintView = context.tv("", 10.5f, Palette.MUTED)
         addView(hintView)
+
+        val addRowView = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        addRow = addRowView
+        val addBtn = smallBtn("＋ 加点") { toggleAddMode() }
+        addButton = addBtn
+        addRowView.addView(addBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            context.dp(36)
+        ))
+        addRowView.addView(
+            context.tv("先点按钮，再点空白位置", 10f, Palette.DIM),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = context.dp(10)
+            }
+        )
+        addView(addRowView, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+            topMargin = context.dp(8)
+        })
 
         selectionRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
         }
-        addView(selectionRow, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = context.dp(6) })
+        addView(selectionRow, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+            topMargin = context.dp(6)
+        })
     }
 
     private fun smallBtn(
@@ -230,10 +256,19 @@ class VisualEditor(
         val step = Step.tap(x, y, 300)
         script.steps.add(step)
         store.save(script)
+        addMode = false
+        canvas?.addMode = false
         canvas?.selected = step
         canvas?.invalidate()
         refreshBars()
         context.toast("已添加点击 #${script.steps.size} ($x, $y)")
+    }
+
+    private fun toggleAddMode() {
+        addMode = !addMode
+        canvas?.addMode = addMode
+        if (addMode) canvas?.selected = null
+        refreshBars()
     }
 
     private fun deleteSelected() {
@@ -266,13 +301,33 @@ class VisualEditor(
 
     private fun refreshBars() {
         val points = script.steps.count { it.type != StepType.WAIT }
-        infoView?.text = "${script.name} · ${script.steps.size} 步 · $points 个点"
-        undoButton?.isEnabled = undoStack.isNotEmpty()
-        hintView?.text = buildString {
-            append("点空白处添加点击 · 拖动圆点改坐标 · 点圆点选中")
-            val waits = script.steps.count { it.type == StepType.WAIT }
-            if (waits > 0) append(" · 另有 $waits 个等待步骤请回脚本页编辑")
+        val waits = script.steps.count { it.type == StepType.WAIT }
+        infoView?.text = buildString {
+            append("${script.name} · ${script.steps.size} 步 · $points 个点")
+            if (waits > 0) append(" · $waits 个等待")
         }
+        undoButton?.isEnabled = undoStack.isNotEmpty()
+
+        val selected = canvas?.selected
+        if (selected != null) {
+            addMode = false
+            canvas?.addMode = false
+        }
+
+        hintView?.text = when {
+            selected != null -> "拖动圆点改坐标 · 点其他圆点切换选中"
+            addMode -> "加点模式：点屏幕上任意空白位置"
+            else -> "拖动圆点改坐标 · 点圆点选中"
+        }
+        addButton?.text = if (addMode) "点空白加点中…" else "＋ 加点"
+        addButton?.setTextColor(if (addMode) Palette.ON_PRIMARY else Palette.TEXT)
+        addButton?.background = roundedRect(
+            if (addMode) Palette.PRIMARY else Palette.CARD_2,
+            context.dp(10),
+            if (addMode) Palette.PRIMARY else Palette.BORDER,
+            context.dp(1)
+        )
+        addRow?.visibility = if (selected == null) View.VISIBLE else View.GONE
         rebuildSelectionRow()
     }
 
@@ -308,7 +363,7 @@ class VisualEditor(
             ).apply { leftMargin = context.dp(6) }
         )
         row.addView(
-            smallBtn("删除", Palette.RED, Color.WHITE) { deleteSelected() },
+            smallBtn("删除", Palette.CARD_2, Palette.RED) { deleteSelected() },
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -333,6 +388,7 @@ class VisualEditor(
 
     private companion object {
         val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
+        val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     }
 }
 
@@ -358,6 +414,8 @@ private class EditorCanvas(
         }
 
     var selectedEnd = false
+
+    var addMode = false
 
     private var pending: Anchor? = null
     private var dragging = false
@@ -426,7 +484,7 @@ private class EditorCanvas(
         script.steps.forEachIndexed { index, step ->
             when (step.type) {
                 StepType.WAIT -> Unit
-                StepType.TAP -> drawDot(canvas, step, step.x, step.y, Palette.BLUE_LIGHT, "${index + 1}", false)
+                StepType.TAP -> drawDot(canvas, step, step.x, step.y, Palette.GREEN, "${index + 1}", false)
                 StepType.LONG_PRESS -> drawDot(canvas, step, step.x, step.y, Palette.AMBER, "${index + 1}", false)
                 StepType.SWIPE -> {
                     swipeLine.alpha = if (step.enabled) 255 else 90
@@ -529,7 +587,12 @@ private class EditorCanvas(
                 } else if (!emptyDrag) {
                     val x = event.rawX.toInt().coerceIn(0, screen.x - 1)
                     val y = event.rawY.toInt().coerceIn(0, screen.y - 1)
-                    onAdd(x, y)
+                    if (addMode) {
+                        onAdd(x, y)
+                    } else {
+                        selected = null
+                        onSelect()
+                    }
                 }
                 pending = null
                 return true

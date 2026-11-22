@@ -12,19 +12,20 @@ import android.widget.Toast
 import androidx.appcompat.widget.AppCompatButton
 
 object Palette {
-    const val BG = 0xFF0F1319.toInt()
-    const val CARD = 0xFF151C26.toInt()
-    const val CARD_2 = 0xFF1B2430.toInt()
-    const val BORDER = 0xFF2B3644.toInt()
-    const val TEXT = 0xFFE6EDF3.toInt()
-    const val MUTED = 0xFF8FA3B8.toInt()
-    const val DIM = 0xFF6C7F95.toInt()
-    const val BLUE = 0xFF1D4ED8.toInt()
-    const val BLUE_LIGHT = 0xFF3B82F6.toInt()
-    const val GREEN = 0xFF38A169.toInt()
-    const val AMBER = 0xFFF59E0B.toInt()
-    const val RED = 0xFFB91C1C.toInt()
-    const val VIOLET = 0xFF8B5CF6.toInt()
+    const val BG = 0xFF0D0D0D.toInt()
+    const val CARD = 0xFF171717.toInt()
+    const val CARD_2 = 0xFF212121.toInt()
+    const val CARD_3 = 0xFF2A2A2A.toInt()
+    const val BORDER = 0xFF303030.toInt()
+    const val TEXT = 0xFFECECEC.toInt()
+    const val MUTED = 0xFFA3A3A3.toInt()
+    const val DIM = 0xFF6E6E6E.toInt()
+    const val PRIMARY = 0xFFECECEC.toInt()
+    const val ON_PRIMARY = 0xFF0D0D0D.toInt()
+    const val GREEN = 0xFF10A37F.toInt()
+    const val AMBER = 0xFFE8A33D.toInt()
+    const val RED = 0xFFE5484D.toInt()
+    const val VIOLET = 0xFFA78BFA.toInt()
 }
 
 fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

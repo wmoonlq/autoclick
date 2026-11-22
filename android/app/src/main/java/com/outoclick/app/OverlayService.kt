@@ -12,20 +12,16 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Point
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
@@ -53,26 +49,27 @@ class OverlayService : Service() {
     private var screenW = 0
     private var screenH = 0
 
-    private var ball: View? = null
-    private var ballParams: WindowManager.LayoutParams? = null
-    private var panel: View? = null
-    private var titleView: TextView? = null
-    private var statusView: TextView? = null
-    private var btnStart: AppCompatButton? = null
-    private var btnStop: AppCompatButton? = null
-    private var normalActions: View? = null
-    private var pickActions: View? = null
-    private var pickTapButton: AppCompatButton? = null
-    private var pickSwipeButton: AppCompatButton? = null
+    private var handle: HandleView? = null
+    private var handleParams: WindowManager.LayoutParams? = null
+    private var sidePanel: SidePanel? = null
 
     private var crosshair: CrosshairView? = null
     private var crossParams: WindowManager.LayoutParams? = null
     private var pickStage = 0 // 0 = off, 1 = tap picking, 2 = swipe start recorded
     private var swipeStart: Point? = null
-    private var lastStatus = "就绪"
+    private var pickBar: LinearLayout? = null
+    private var pickBarStatus: TextView? = null
+    private var pickSwipeButton: AppCompatButton? = null
 
     private var editor: VisualEditor? = null
     private var editing = false
+    private var lastStatus = "就绪"
+
+    private val fadeHandler = Handler(Looper.getMainLooper())
+    private val fadeRunnable = Runnable {
+        val target = if (Runner.running) 0.85f else 0.42f
+        handle?.animate()?.alpha(target)?.setDuration(260L)?.start()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -83,23 +80,70 @@ class OverlayService : Service() {
         screenW = size.x
         screenH = size.y
         createChannel()
-        if (store.ballVisible()) addBall()
+
+        sidePanel = SidePanel(this, wm, store, { lastStatus }, object : SidePanel.Callbacks {
+            override fun onClosed() {
+                if (!running || editing || pickStage != 0 || !store.ballVisible()) return
+                addHandle()
+            }
+
+            override fun onToggleRun() {
+                toggleRun()
+                sidePanel?.close(animated = false)
+            }
+
+            override fun onStop() {
+                Runner.stop()
+                sidePanel?.close(animated = false)
+            }
+
+            override fun onArrange() {
+                sidePanel?.close(animated = false)
+                enterVisualEditor()
+            }
+
+            override fun onPick() {
+                sidePanel?.close(animated = false)
+                enterPickMode()
+            }
+
+            override fun onOpenApp() {
+                sidePanel?.close(animated = false)
+                openApp()
+            }
+
+            override fun onHide() {
+                store.setBallVisible(false)
+                sidePanel?.close(animated = false)
+                updateNotification(lastStatus)
+                toast("已隐藏悬浮条，可从通知栏恢复")
+            }
+
+            override fun onSelectScript(id: String) {
+                switchScript(id)
+                sidePanel?.refresh()
+            }
+        })
+
+        if (store.ballVisible()) addHandle()
         startForegroundCompat(lastStatus)
+
         Runner.onStatus = { text ->
             lastStatus = text
             mainHandler.post {
-                statusView?.text = text
+                sidePanel?.refresh()
+                pickBarStatus?.text = text
                 updateNotification(text)
-                refreshStartButton()
-                updateBallVisual()
+                updateHandleState()
             }
         }
         Runner.onFinished = { text ->
             mainHandler.post {
-                statusView?.text = text
+                sidePanel?.refresh()
+                pickBarStatus?.text = text
                 updateNotification(text)
-                refreshStartButton()
-                updateBallVisual()
+                updateHandleState()
+                scheduleFade()
             }
         }
     }
@@ -107,16 +151,12 @@ class OverlayService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_REFRESH -> {
-                refreshTitle()
-                if (!Runner.running && statusView != null) statusView?.text = "就绪"
-                if (!editing && pickStage == 0 && panel != null) {
-                    removePanel()
-                    addPanel()
-                }
+                sidePanel?.refresh()
+                updateNotification(lastStatus)
             }
             ACTION_EDIT -> enterVisualEditor()
-            ACTION_SHOW_BALL -> showBall()
-            ACTION_HIDE_BALL -> hideBall()
+            ACTION_SHOW_BALL -> showHandle()
+            ACTION_HIDE_BALL -> hideHandle()
         }
         return START_STICKY
     }
@@ -131,11 +171,12 @@ class OverlayService : Service() {
         editor?.hide()
         editor = null
         editing = false
+        sidePanel?.close(animated = false)
+        sidePanel = null
         removeCrosshair()
-        panel?.let { runCatching { wm.removeView(it) } }
-        ball?.let { runCatching { wm.removeView(it) } }
-        panel = null
-        ball = null
+        removePickBar()
+        removeHandle()
+        fadeHandler.removeCallbacks(fadeRunnable)
         super.onDestroy()
     }
 
@@ -163,12 +204,12 @@ class OverlayService : Service() {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val ballHidden = ball == null
+        val visible = store.ballVisible()
         val toggle = PendingIntent.getService(
             this,
             11,
             Intent(this, OverlayService::class.java)
-                .setAction(if (ballHidden) ACTION_SHOW_BALL else ACTION_HIDE_BALL),
+                .setAction(if (visible) ACTION_HIDE_BALL else ACTION_SHOW_BALL),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -179,7 +220,7 @@ class OverlayService : Service() {
             .setOnlyAlertOnce(true)
             .setContentIntent(pending)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(0, if (ballHidden) "显示悬浮球" else "隐藏悬浮球", toggle)
+            .addAction(0, if (visible) "隐藏悬浮条" else "显示悬浮条", toggle)
             .build()
     }
 
@@ -198,7 +239,7 @@ class OverlayService : Service() {
     }
 
     // ------------------------------------------------------------------
-    // Floating ball
+    // Floating handle
     // ------------------------------------------------------------------
     private fun overlayParams(width: Int, height: Int): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
@@ -214,69 +255,62 @@ class OverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-    private fun addBall() {
-        if (editing || ball != null) return
-        val size = dp(54)
-        val view = TextView(this).apply {
-            text = "OC"
-            textSize = 12f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            typeface = Typeface.DEFAULT_BOLD
-            background = ballDrawable(Palette.BLUE)
-            elevation = dp(8).toFloat()
-        }
-        val params = overlayParams(size, size).apply {
+    private fun addHandle() {
+        if (!running || editing || pickStage != 0) return
+        if (handle != null || sidePanel?.isOpen == true) return
+        val width = dp(26)
+        val height = dp(72)
+        val view = HandleView(this)
+        val params = overlayParams(width, height).apply {
             val savedX = store.overlayX()
             val savedY = store.overlayY()
-            x = (if (savedX >= 0) savedX else dp(16))
-                .coerceIn(0, (screenW - size).coerceAtLeast(0))
-            y = (if (savedY >= 0) savedY else (screenH / 3).coerceAtLeast(dp(120)))
-                .coerceIn(0, (screenH - size).coerceAtLeast(0))
+            x = if (savedX >= 0) savedX.coerceIn(0, (screenW - width).coerceAtLeast(0))
+            else (screenW - width - dp(4)).coerceAtLeast(0)
+            y = if (savedY >= 0) savedY.coerceIn(0, (screenH - height).coerceAtLeast(0))
+            else (screenH / 3)
         }
-        attachBall(view, params)
-        runCatching { wm.addView(view, params) }
-        ball = view
-        ballParams = params
-        updateBallVisual()
+        attachHandle(view, params)
+        if (runCatching { wm.addView(view, params) }.isFailure) return
+        handle = view
+        handleParams = params
+        updateHandleState()
+        view.alpha = 1f
+        scheduleFade()
     }
 
-    private fun ballDrawable(color: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(color)
-        setStroke(dp(2), 0x66FFFFFF)
+    private fun removeHandle() {
+        handle?.let { runCatching { wm.removeView(it) } }
+        handle = null
+        fadeHandler.removeCallbacks(fadeRunnable)
     }
 
-    private fun updateBallVisual() {
-        val view = ball ?: return
+    private fun updateHandleState() {
         val color = when {
             Runner.running && Runner.paused -> Palette.AMBER
             Runner.running -> Palette.GREEN
-            else -> Palette.BLUE
+            else -> Palette.TEXT
         }
-        view.background = ballDrawable(color)
-        view.invalidate()
+        handle?.stateColor = color
+        handle?.let { scheduleFade() }
+    }
+
+    private fun scheduleFade() {
+        fadeHandler.removeCallbacks(fadeRunnable)
+        fadeHandler.postDelayed(fadeRunnable, 2600L)
     }
 
     /**
-     * 单击 = 开始/暂停/继续；长按 = 展开或收起面板；拖动 = 自由摆放（不吸边）。
+     * 单击打开侧滑抽屉；拖动移动位置，靠近左右边缘会吸附贴边；
+     * 从贴边状态横向向内滑也能打开抽屉。
      */
-    private fun attachBall(view: View, params: WindowManager.LayoutParams) {
+    private fun attachHandle(view: View, params: WindowManager.LayoutParams) {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
-        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
         var downX = 0f
         var downY = 0f
         var startX = 0
         var startY = 0
         var moved = false
-        var longPressFired = false
-
-        val longPress = Runnable {
-            if (moved || !running) return@Runnable
-            longPressFired = true
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            if (panel == null) addPanel() else removePanel()
-        }
+        var consumed = false
 
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
@@ -286,39 +320,58 @@ class OverlayService : Service() {
                     startX = params.x
                     startY = params.y
                     moved = false
-                    longPressFired = false
-                    mainHandler.postDelayed(longPress, longPressTimeout)
+                    consumed = false
+                    fadeHandler.removeCallbacks(fadeRunnable)
+                    v.animate().cancel()
+                    v.alpha = 1f
                     true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (event.rawX - downX).toInt()
-                    val dy = (event.rawY - downY).toInt()
-                    if (abs(dx) > slop || abs(dy) > slop) {
-                        if (!moved) mainHandler.removeCallbacks(longPress)
-                        moved = true
+                    val dx = event.rawX - downX
+                    val dy = event.rawY - downY
+                    if (!moved && (abs(dx) > slop || abs(dy) > slop)) moved = true
+
+                    if (moved && !consumed) {
+                        val dockedLeft = startX <= dp(2)
+                        val dockedRight = startX + params.width >= screenW - dp(2)
+                        val inward = if (dockedLeft) dx else if (dockedRight) -dx else 0f
+                        if (inward > dp(36) && abs(dx) > abs(dy) * 1.4f) {
+                            consumed = true
+                            openSidePanel()
+                            return@setOnTouchListener true
+                        }
                     }
-                    if (moved) {
-                        params.x = (startX + dx).coerceIn(0, (screenW - params.width).coerceAtLeast(0))
-                        params.y = (startY + dy).coerceIn(0, (screenH - params.height).coerceAtLeast(0))
+
+                    if (moved && !consumed) {
+                        params.x = (startX + dx).toInt().coerceIn(0, (screenW - params.width).coerceAtLeast(0))
+                        params.y = (startY + dy).toInt().coerceIn(0, (screenH - params.height).coerceAtLeast(0))
                         runCatching { wm.updateViewLayout(v, params) }
                     }
                     true
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    mainHandler.removeCallbacks(longPress)
-                    if (moved) {
+                    if (!moved) {
+                        openSidePanel()
+                    } else if (!consumed) {
+                        if (params.x <= dp(40)) {
+                            params.x = dp(4)
+                        } else if (params.x >= screenW - params.width - dp(40)) {
+                            params.x = screenW - params.width - dp(4)
+                        }
+                        runCatching { wm.updateViewLayout(v, params) }
                         store.setOverlay(params.x, params.y)
-                    } else if (!longPressFired) {
-                        toggleRun()
+                        scheduleFade()
                     }
                     true
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
-                    mainHandler.removeCallbacks(longPress)
-                    if (moved) store.setOverlay(params.x, params.y)
+                    if (!consumed) {
+                        store.setOverlay(params.x, params.y)
+                        scheduleFade()
+                    }
                     true
                 }
 
@@ -327,6 +380,37 @@ class OverlayService : Service() {
         }
     }
 
+    private fun openSidePanel() {
+        if (!running || editing || pickStage != 0) return
+        if (sidePanel?.isOpen == true) return
+        val params = handleParams
+        val centerX = (params?.x ?: (screenW - dp(26))) + dp(13)
+        val side = if (centerX < screenW / 2) Gravity.START else Gravity.END
+        removeHandle()
+        if (params != null) {
+            // 记住当前位置，关闭抽屉后恢复
+            store.setOverlay(params.x, params.y)
+        }
+        sidePanel?.open(side)
+    }
+
+    private fun hideHandle() {
+        store.setBallVisible(false)
+        removeHandle()
+        sidePanel?.close(animated = false)
+        updateNotification(lastStatus)
+        toast("已隐藏悬浮条，可从通知栏恢复")
+    }
+
+    private fun showHandle() {
+        store.setBallVisible(true)
+        if (!editing && pickStage == 0 && sidePanel?.isOpen != true) addHandle()
+        updateNotification(lastStatus)
+    }
+
+    // ------------------------------------------------------------------
+    // Run control
+    // ------------------------------------------------------------------
     private fun toggleRun() {
         if (Runner.running) {
             if (Runner.paused) {
@@ -336,264 +420,50 @@ class OverlayService : Service() {
                 Runner.pause()
                 toast("已暂停")
             }
-            refreshStartButton()
-            updateBallVisual()
+            updateHandleState()
             return
         }
-        val active = store.active()
-        if (active == null) {
-            toast("没有脚本，长按球打开面板")
+        val script = store.active()
+        if (script == null) {
+            toast("没有脚本，点悬浮条打开面板")
             return
         }
         if (!ClickAccessibilityService.ready()) {
             toast("无障碍服务未开启")
             return
         }
-        store.setActive(active.id)
-        if (Runner.start(active)) {
-            toast("开始：${active.name}")
+        store.setActive(script.id)
+        if (Runner.start(script)) {
+            toast("开始：${script.name}")
         } else {
             toast("脚本没有启用的步骤")
         }
-        refreshStartButton()
-        updateBallVisual()
-    }
-
-    private fun removePanel() {
-        panel?.let { runCatching { wm.removeView(it) } }
-        panel = null
-        titleView = null
-        statusView = null
-        btnStart = null
-        btnStop = null
-        normalActions = null
-        pickActions = null
-        pickTapButton = null
-        pickSwipeButton = null
-    }
-
-    private fun addPanel() {
-        removePanel()
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedRect(0xF2141B24.toInt(), dp(14), Palette.BORDER, dp(1))
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            elevation = dp(10).toFloat()
-        }
-
-        val script = store.active()
-        val head = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val title = tv(
-            script?.let { "${it.name} · ${it.steps.size} 步" } ?: "没有脚本",
-            13f,
-            Palette.TEXT,
-            bold = true
-        ).apply {
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        titleView = title
-        head.addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val close = btn("×", Palette.CARD_2) { removePanel() }.apply {
-            textSize = 16f
-            minWidth = dp(32)
-            minimumWidth = dp(32)
-            minHeight = dp(32)
-            setPadding(0, 0, 0, 0)
-        }
-        head.addView(close)
-        card.addView(head)
-
-        addScriptChips(card)
-
-        val status = tv(if (Runner.running) lastStatus else "就绪", 11f, Palette.MUTED).apply {
-            maxLines = 2
-            setPadding(0, dp(4), 0, 0)
-        }
-        statusView = status
-        card.addView(status)
-
-        val normal = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val row1 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val start = btn(if (Runner.running) "暂停" else "开始", Palette.BLUE, Color.WHITE) {
-            toggleRun()
-            refreshStartButton()
-        }
-        val stop = btn("停止", Palette.RED, Color.WHITE) {
-            Runner.stop()
-            refreshStartButton()
-        }
-        row1.addView(start, LinearLayout.LayoutParams(0, dp(40), 1f).apply { rightMargin = dp(6) })
-        row1.addView(stop, LinearLayout.LayoutParams(0, dp(40), 1f))
-        btnStart = start
-        btnStop = stop
-        normal.addView(row1, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(10) })
-
-        val row2 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val pick = btn("取点", Palette.CARD_2) { enterPickMode() }
-        val arrange = btn("编排", Palette.CARD_2) { enterVisualEditor() }
-        val hide = btn("隐藏", Palette.CARD_2) { hideBall() }
-        listOf(pick, arrange, hide).forEachIndexed { index, button ->
-            row2.addView(button, LinearLayout.LayoutParams(0, dp(38), 1f).apply {
-                rightMargin = if (index < 2) dp(6) else 0
-            })
-        }
-        normal.addView(row2, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(6) })
-        card.addView(normal)
-        normalActions = normal
-
-        val pickRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE
-        }
-        val recordTap = btn("记录点击", Palette.BLUE, Color.WHITE) { recordTap() }
-        val swipe = btn("起点", Palette.AMBER, Color.BLACK) { recordSwipe() }
-        val cancel = btn("取消", Palette.CARD_2) { cancelPick() }
-        pickRow.addView(recordTap, LinearLayout.LayoutParams(0, dp(38), 1.4f).apply { rightMargin = dp(6) })
-        pickRow.addView(swipe, LinearLayout.LayoutParams(0, dp(38), 1f).apply { rightMargin = dp(6) })
-        pickRow.addView(cancel, LinearLayout.LayoutParams(0, dp(38), 1f))
-        card.addView(pickRow, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(10) })
-        pickActions = pickRow
-        pickTapButton = recordTap
-        pickSwipeButton = swipe
-
-        val width = dp(272)
-        card.measure(
-            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        val (x, y) = panelPosition(card.measuredHeight)
-        val params = overlayParams(width, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            this.x = x
-            this.y = y
-        }
-        runCatching { wm.addView(card, params) }
-        panel = card
-
-        if (pickStage != 0) {
-            normal.visibility = View.GONE
-            pickRow.visibility = View.VISIBLE
-            pickSwipeButton?.text = if (pickStage == 2) "终点" else "起点"
-        }
-        refreshStartButton()
-    }
-
-    private fun addScriptChips(card: LinearLayout) {
-        val scripts = store.list()
-        if (scripts.isEmpty()) return
-        val activeId = store.active()?.id
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        scripts.forEach { item ->
-            val selected = item.id == activeId
-            val chip = btn(
-                item.name,
-                if (selected) Palette.BLUE else Palette.CARD_2,
-                if (selected) Color.WHITE else Palette.TEXT
-            ) {
-                if (item.id != store.active()?.id) switchScript(item.id)
-            }.apply {
-                textSize = 11.5f
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                maxWidth = dp(168)
-                minHeight = dp(32)
-                setPadding(dp(10), 0, dp(10), 0)
-            }
-            row.addView(chip, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(32)
-            ).apply { rightMargin = dp(6) })
-        }
-        val scroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(row)
-        }
-        card.addView(scroll, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(36)
-        ).apply { topMargin = dp(8) })
+        updateHandleState()
     }
 
     private fun switchScript(id: String) {
         if (Runner.running) Runner.stop()
         store.setActive(id)
-        val name = store.load(id)?.name ?: "脚本"
-        toast("方案：$name")
-        removePanel()
-        addPanel()
-        refreshStartButton()
-    }
-
-    private fun panelPosition(panelHeight: Int): Pair<Int, Int> {
-        val width = dp(272)
-        val ballSize = ballParams?.width ?: dp(54)
-        val ballX = ballParams?.x ?: dp(24)
-        val ballY = ballParams?.y ?: dp(320)
-        val gap = dp(10)
-        val bottomLimit = screenH - Screen.navigationBarHeight(this) - dp(8)
-        val below = ballY + ballSize + gap
-        val above = ballY - panelHeight - gap
-        val y = when {
-            below + panelHeight <= bottomLimit -> below
-            above >= dp(8) -> above
-            else -> (bottomLimit - panelHeight).coerceAtLeast(dp(8))
-        }
-        val x = (ballX + ballSize / 2 - width / 2)
-            .coerceIn(dp(8), (screenW - width - dp(8)).coerceAtLeast(dp(8)))
-        return x to y
-    }
-
-    private fun refreshStartButton() {
-        btnStart?.text = when {
-            Runner.running && Runner.paused -> "继续"
-            Runner.running -> "暂停"
-            else -> "开始"
-        }
-        btnStop?.isEnabled = Runner.running
-        btnStart?.isEnabled = true
-    }
-
-    private fun refreshTitle() {
-        val script = store.active()
-        titleView?.text = script?.let { "${it.name} · ${it.steps.size} 步" } ?: "没有脚本"
+        toast("方案：${store.load(id)?.name ?: "脚本"}")
     }
 
     // ------------------------------------------------------------------
     // Crosshair / picking
     // ------------------------------------------------------------------
     private fun enterPickMode() {
+        if (!running || editing || pickStage != 0) return
         val script = store.active()
         if (script == null) {
             toast("请先在 App 里新建脚本")
             return
         }
-        addCrosshair()
         pickStage = 1
         swipeStart = null
-        normalActions?.visibility = View.GONE
-        pickActions?.visibility = View.VISIBLE
-        pickTapButton?.text = "记录点击"
-        pickSwipeButton?.text = "起点"
-        statusView?.text = "拖动准星到目标位置"
+        sidePanel?.close(animated = false)
+        removeHandle()
+        addCrosshair()
+        addPickBar()
+        setPickStatus("拖动准星到目标位置")
     }
 
     private fun addCrosshair() {
@@ -604,7 +474,7 @@ class OverlayService : Service() {
             x = (screenW - size) / 2
             y = (screenH - size) / 2
         }
-        attachDrag(view, params, savePosition = false, onClick = null)
+        attachDrag(view, params)
         runCatching { wm.addView(view, params) }
         crosshair = view
         crossParams = params
@@ -621,14 +491,59 @@ class OverlayService : Service() {
         return Point(params.x + params.width / 2, params.y + params.height / 2)
     }
 
+    private fun addPickBar() {
+        if (pickBar != null) return
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedRect(0xF5171717.toInt(), dp(18), Palette.BORDER, dp(1))
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            elevation = dp(16).toFloat()
+        }
+        pickBarStatus = tv("拖动准星到目标位置", 11f, Palette.MUTED).apply { maxLines = 2 }
+        card.addView(pickBarStatus)
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val record = btn("记录点击", Palette.PRIMARY, Palette.ON_PRIMARY) { recordTap() }
+        val swipe = btn("起点", Palette.CARD_2, Palette.TEXT) { recordSwipe() }
+        val cancel = btn("取消", Palette.CARD_2, Palette.MUTED) { cancelPick() }
+        pickSwipeButton = swipe
+        row.addView(record, LinearLayout.LayoutParams(0, dp(40), 1.5f).apply { rightMargin = dp(6) })
+        row.addView(swipe, LinearLayout.LayoutParams(0, dp(40), 1f).apply { rightMargin = dp(6) })
+        row.addView(cancel, LinearLayout.LayoutParams(0, dp(40), 1f))
+        card.addView(row, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(10) })
+
+        val params = overlayParams(dp(300), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = Screen.navigationBarHeight(this@OverlayService) + dp(12)
+        }
+        runCatching { wm.addView(card, params) }
+        pickBar = card
+    }
+
+    private fun removePickBar() {
+        pickBar?.let { runCatching { wm.removeView(it) } }
+        pickBar = null
+        pickBarStatus = null
+        pickSwipeButton = null
+    }
+
+    private fun setPickStatus(text: String) {
+        pickBarStatus?.text = text
+    }
+
     private fun recordTap() {
         val point = crosshairCenter() ?: return
         val script = store.active() ?: return
         script.steps.add(Step.tap(point.x, point.y, 300))
         store.save(script)
         toast("已记录点击 (${point.x}, ${point.y})")
-        statusView?.text = "已记录 (${point.x}, ${point.y}) · 共 ${script.steps.size} 步"
-        refreshTitle()
+        setPickStatus("已记录 (${point.x}, ${point.y}) · 共 ${script.steps.size} 步")
     }
 
     private fun recordSwipe() {
@@ -638,70 +553,46 @@ class OverlayService : Service() {
             swipeStart = point
             pickStage = 2
             pickSwipeButton?.text = "终点"
-            statusView?.text = "起点 (${point.x}, ${point.y})，移动准星到终点"
+            setPickStatus("起点 (${point.x}, ${point.y})，移动准星到终点")
             return
         }
         val start = swipeStart ?: point
         script.steps.add(Step.swipe(start.x, start.y, point.x, point.y, 300))
         store.save(script)
         toast("已记录滑动 (${start.x},${start.y}) → (${point.x},${point.y})")
-        statusView?.text = "共 ${script.steps.size} 步"
+        pickSwipeButton?.text = "起点"
         swipeStart = null
         pickStage = 1
-        pickSwipeButton?.text = "起点"
-        refreshTitle()
+        setPickStatus("共 ${script.steps.size} 步 · 可继续取点")
     }
 
     private fun cancelPick() {
         removeCrosshair()
+        removePickBar()
         pickStage = 0
         swipeStart = null
-        normalActions?.visibility = View.VISIBLE
-        pickActions?.visibility = View.GONE
-        statusView?.text = "就绪"
+        if (!editing && store.ballVisible()) addHandle()
     }
 
     // ------------------------------------------------------------------
-    // Visibility / visual editing
+    // Visual editor
     // ------------------------------------------------------------------
-    private fun hideBall() {
-        if (editing) return
-        removePanel()
-        ball?.let { runCatching { wm.removeView(it) } }
-        ball = null
-        ballParams = null
-        store.setBallVisible(false)
-        updateNotification(lastStatus)
-        toast("已隐藏悬浮球，可从通知栏恢复")
-    }
-
-    private fun showBall() {
-        if (editing) return
-        store.setBallVisible(true)
-        if (ball == null) addBall()
-        updateNotification(lastStatus)
-    }
-
     private fun enterVisualEditor() {
-        if (editing) return
+        if (!running || editing) return
+        if (pickStage != 0) cancelPick()
         val script = store.active()
         if (script == null) {
             toast("没有脚本，先去 App 新建")
             return
         }
-        if (Runner.running) Runner.stop()
-        removePanel()
-        removeCrosshair()
-        pickStage = 0
-        swipeStart = null
-        ball?.let { runCatching { wm.removeView(it) } }
-        ball = null
-        ballParams = null
         editing = true
+        if (Runner.running) Runner.stop()
+        sidePanel?.close(animated = false)
+        removeHandle()
         val view = VisualEditor(this, wm, store, script) { exitVisualEditor() }
         if (!view.show()) {
             editing = false
-            if (store.ballVisible()) addBall()
+            if (store.ballVisible()) addHandle()
             return
         }
         editor = view
@@ -713,21 +604,21 @@ class OverlayService : Service() {
         editor?.hide()
         editor = null
         editing = false
-        if (store.ballVisible()) addBall()
-        refreshTitle()
-        refreshStartButton()
+        if (store.ballVisible()) addHandle()
         updateNotification(lastStatus)
     }
 
     // ------------------------------------------------------------------
     // Misc
     // ------------------------------------------------------------------
-    private fun attachDrag(
-        view: View,
-        params: WindowManager.LayoutParams,
-        savePosition: Boolean,
-        onClick: (() -> Unit)?,
-    ) {
+    private fun openApp() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { startActivity(intent) }
+    }
+
+    private fun attachDrag(view: View, params: WindowManager.LayoutParams) {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
         var downX = 0f
         var downY = 0f
@@ -756,15 +647,7 @@ class OverlayService : Service() {
                     true
                 }
 
-                MotionEvent.ACTION_UP -> {
-                    if (!moved) {
-                        onClick?.invoke()
-                    } else if (savePosition) {
-                        store.setOverlay(params.x, params.y)
-                    }
-                    true
-                }
-
+                MotionEvent.ACTION_UP -> true
                 MotionEvent.ACTION_CANCEL -> true
                 else -> false
             }
@@ -779,16 +662,16 @@ class OverlayService : Service() {
         private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = context.dp(2).toFloat()
-            color = Palette.AMBER
+            color = Palette.TEXT
         }
         private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = context.dp(1.4f.toInt()).toFloat()
-            color = Color.WHITE
+            color = Palette.TEXT
         }
         private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Palette.AMBER
+            color = Palette.GREEN
         }
 
         override fun onDraw(canvas: Canvas) {

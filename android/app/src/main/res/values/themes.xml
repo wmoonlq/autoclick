@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Outoclick" parent="Theme.AppCompat.NoActionBar">
-        <item name="colorPrimary">#1D4ED8</item>
-        <item name="colorPrimaryDark">#0F1319</item>
-        <item name="colorAccent">#3B82F6</item>
-        <item name="android:windowBackground">#0F1319</item>
-        <item name="android:statusBarColor">#0F1319</item>
-        <item name="android:navigationBarColor">#0F1319</item>
+        <item name="colorPrimary">#ECECEC</item>
+        <item name="colorPrimaryDark">#0D0D0D</item>
+        <item name="colorAccent">#10A37F</item>
+        <item name="android:windowBackground">#0D0D0D</item>
+        <item name="android:statusBarColor">#0D0D0D</item>
+        <item name="android:navigationBarColor">#0D0D0D</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:textColorPrimary">#E6EDF3</item>
-        <item name="android:textColorSecondary">#9FB0C3</item>
-        <item name="android:colorControlActivated">#3B82F6</item>
+        <item name="android:textColorPrimary">#ECECEC</item>
+        <item name="android:textColorSecondary">#A3A3A3</item>
+        <item name="android:colorControlActivated">#10A37F</item>
     </style>
 </resources>

@@ -1,4 +1,4 @@
-package com.outoclick.app
+﻿package com.outoclick.app
 
 import android.Manifest
 import android.app.NotificationManager
@@ -26,6 +26,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -50,6 +51,10 @@ class MainActivity : AppCompatActivity() {
         store = ScriptStore(this)
         window.statusBarColor = Palette.BG
         window.navigationBarColor = Palette.BG
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
         setContentView(buildRoot())
         script = store.ensureSeed()
         rebuildSpinner()
@@ -132,13 +137,13 @@ class MainActivity : AppCompatActivity() {
         accStatus = permissionRow(card, "无障碍服务", "执行点击、长按、滑动", "去开启") {
             openAccessibility()
         }
-        overlayStatus = permissionRow(card, "悬浮窗", "十字准星取点 + 悬浮球", "去开启") {
+        overlayStatus = permissionRow(card, "悬浮窗", "准星取点 + 贴边悬浮条", "去开启") {
             openOverlaySettings()
         }
         notifStatus = permissionRow(card, "通知", "前台运行状态", "去开启") {
             requestNotifications()
         }
-        val prepare = btn("一键检查并开启", Palette.BLUE, Color.WHITE) { prepareAll() }
+        val prepare = btn("一键检查并开启", Palette.PRIMARY, Palette.ON_PRIMARY) { prepareAll() }
         card.addView(prepare, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
@@ -258,13 +263,13 @@ class MainActivity : AppCompatActivity() {
     private fun runCard(): LinearLayout {
         val card = card()
         card.addView(tv("悬浮控制", 16f, Palette.TEXT, bold = true))
-        card.addView(tv("悬浮球：单击开始/暂停，长按展开面板，拖动可放任意位置（不吸边）。", 11.5f, Palette.MUTED).apply {
+        card.addView(tv("悬浮条：单击打开侧边抽屉；拖动可自由摆放，靠近左右边缘会自动贴边。", 11.5f, Palette.MUTED).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(4) }
         })
-        val start = btn("启动悬浮窗", Palette.BLUE, Color.WHITE) { startOverlay() }
+        val start = btn("启动悬浮条", Palette.PRIMARY, Palette.ON_PRIMARY) { startOverlay() }
         card.addView(start, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(44)
@@ -279,7 +284,7 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             dp(40)
         ).apply { topMargin = dp(8) })
-        card.addView(tv("编排模式会暂时收起悬浮球，把每个点位画在屏幕上，拖到哪就保存到哪。", 10.5f, Palette.DIM).apply {
+        card.addView(tv("编排模式会暂时收起悬浮条，把每个点位画在屏幕上，拖到哪就保存到哪。", 10.5f, Palette.DIM).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -332,7 +337,7 @@ class MainActivity : AppCompatActivity() {
                 openAccessibility()
             }
             Build.VERSION.SDK_INT >= 33 && !notificationsOn() -> requestNotifications()
-            else -> toast("权限已就绪，去目标 App 点悬浮球")
+            else -> toast("权限已就绪，去目标 App 点悬浮条")
         }
     }
 
@@ -788,14 +793,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (OverlayService.running) {
-            // 服务已在运行：这个按钮兼作「显示悬浮球」
+            // 服务已在运行：这个按钮兼作「显示悬浮条」
             store.setBallVisible(true)
             runCatching {
                 startService(
                     Intent(this, OverlayService::class.java)
                         .setAction(OverlayService.ACTION_SHOW_BALL)
                 )
-                toast("已显示悬浮球")
+                toast("已显示悬浮条")
                 moveTaskToBack(true)
             }.onFailure { toast("操作失败：${it.message}") }
             return
@@ -809,7 +814,7 @@ class MainActivity : AppCompatActivity() {
         store.setBallVisible(true)
         runCatching {
             startForegroundService(Intent(this, OverlayService::class.java))
-            toast("悬浮球已启动，切到目标 App 后点它")
+            toast("悬浮条已启动，切到目标 App 后点它")
             moveTaskToBack(true)
         }.onFailure {
             toast("启动失败：${it.message}")
