@@ -437,7 +437,13 @@ class MainActivity : AppCompatActivity() {
         scriptInfo.text = if (current == null) {
             "没有脚本"
         } else {
-            "id ${current.id} · ${current.steps.size} 步 · 循环 ${current.repeat} 次"
+            buildString {
+                append("id ${current.id} · ${current.steps.size} 步 · 循环 ${current.repeat} 次")
+                if (current.baseWidth > 0 && current.baseHeight > 0) {
+                    append(" · 基准 ${current.baseWidth}×${current.baseHeight}")
+                }
+                if (current.jitterMs > 0 || current.jitterPx > 0) append(" · 随机节奏")
+            }
         }
     }
 
@@ -483,6 +489,20 @@ class MainActivity : AppCompatActivity() {
             hint = "循环次数"
             setHintTextColor(Palette.DIM)
         }
+        val jitterMs = EditText(this).apply {
+            setText((existing?.jitterMs ?: 0).toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setTextColor(Palette.TEXT)
+            hint = "随机延迟 ±ms"
+            setHintTextColor(Palette.DIM)
+        }
+        val jitterPx = EditText(this).apply {
+            setText((existing?.jitterPx ?: 0).toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setTextColor(Palette.TEXT)
+            hint = "随机坐标 ±px"
+            setHintTextColor(Palette.DIM)
+        }
         box.addView(tv("名称", 11f, Palette.MUTED))
         box.addView(name)
         box.addView(tv("循环次数（1–100000）", 11f, Palette.MUTED).apply {
@@ -492,16 +512,29 @@ class MainActivity : AppCompatActivity() {
             ).apply { topMargin = dp(10) }
         })
         box.addView(repeat)
+        box.addView(tv("随机节奏：每步延时 ±ms、坐标 ±px（0 = 关闭）", 11f, Palette.MUTED).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        })
+        box.addView(jitterMs)
+        box.addView(jitterPx, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
 
         AlertDialog.Builder(this)
             .setTitle(if (existing == null) "新建脚本" else "脚本设置")
-            .setView(box)
+            .setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton("保存") { _, _ ->
                 val title = name.text.toString().trim().ifBlank { "未命名脚本" }
                 val rounds = repeat.text.toString().trim().toIntOrNull()?.coerceIn(1, 100_000) ?: 1
                 val target = existing ?: Script(name = title)
                 target.name = title
                 target.repeat = rounds
+                target.jitterMs = jitterMs.text.toString().trim().toIntOrNull()?.coerceIn(0, 5000) ?: 0
+                target.jitterPx = jitterPx.text.toString().trim().toIntOrNull()?.coerceIn(0, 200) ?: 0
                 store.save(target)
                 script = store.load(target.id) ?: target
                 store.setActive(target.id)

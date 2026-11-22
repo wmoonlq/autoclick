@@ -18,6 +18,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
@@ -45,7 +46,9 @@ class VisualEditor(
     private var undoButton: AppCompatButton? = null
     private var addRow: LinearLayout? = null
     private var addButton: AppCompatButton? = null
+    private var swipeButton: AppCompatButton? = null
     private var addMode = false
+    private var swipeMode = false
     private val undoStack = ArrayDeque<List<Step>>()
 
     fun show(): Boolean {
@@ -62,6 +65,7 @@ class VisualEditor(
             onChange = { refreshSelectionText() },
             onCommit = { saveAndRefresh() },
             onAdd = { x, y -> addPoint(x, y) },
+            onAddSwipe = { x1, y1, x2, y2 -> addSwipe(x1, y1, x2, y2) },
             onSelect = { refreshBars() },
         )
         rootView.addView(editorCanvas, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -117,7 +121,9 @@ class VisualEditor(
         undoButton = null
         addRow = null
         addButton = null
+        swipeButton = null
         addMode = false
+        swipeMode = false
     }
 
     // ------------------------------------------------------------------
@@ -202,8 +208,14 @@ class VisualEditor(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             context.dp(36)
         ))
+        val swipeBtn = smallBtn("＋ 滑动") { toggleSwipeMode() }
+        swipeButton = swipeBtn
+        addRowView.addView(swipeBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            context.dp(36)
+        ).apply { leftMargin = context.dp(6) })
         addRowView.addView(
-            context.tv("先点按钮，再点空白位置", 10f, Palette.DIM),
+            context.tv("先选模式，再在画布上操作", 10f, Palette.DIM),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 leftMargin = context.dp(10)
             }
@@ -257,17 +269,49 @@ class VisualEditor(
         script.steps.add(step)
         store.save(script)
         addMode = false
+        swipeMode = false
         canvas?.addMode = false
+        canvas?.swipeMode = false
         canvas?.selected = step
         canvas?.invalidate()
         refreshBars()
         context.toast("已添加点击 #${script.steps.size} ($x, $y)")
     }
 
+    private fun addSwipe(x1: Int, y1: Int, x2: Int, y2: Int) {
+        pushUndo()
+        val step = Step.swipe(x1, y1, x2, y2, 300)
+        script.steps.add(step)
+        store.save(script)
+        addMode = false
+        swipeMode = false
+        canvas?.addMode = false
+        canvas?.swipeMode = false
+        canvas?.selected = step
+        canvas?.invalidate()
+        refreshBars()
+        context.toast("已添加滑动 #${script.steps.size} ($x1,$y1) → ($x2,$y2)")
+    }
+
     private fun toggleAddMode() {
         addMode = !addMode
+        if (addMode) {
+            swipeMode = false
+            canvas?.swipeMode = false
+        }
         canvas?.addMode = addMode
         if (addMode) canvas?.selected = null
+        refreshBars()
+    }
+
+    private fun toggleSwipeMode() {
+        swipeMode = !swipeMode
+        if (swipeMode) {
+            addMode = false
+            canvas?.addMode = false
+        }
+        canvas?.swipeMode = swipeMode
+        if (swipeMode) canvas?.selected = null
         refreshBars()
     }
 
@@ -305,30 +349,43 @@ class VisualEditor(
         infoView?.text = buildString {
             append("${script.name} · ${script.steps.size} 步 · $points 个点")
             if (waits > 0) append(" · $waits 个等待")
+            val size = Screen.size(context)
+            if (script.baseWidth > 0 && (script.baseWidth != size.x || script.baseHeight != size.y)) {
+                append(" · 基准 ${script.baseWidth}×${script.baseHeight}")
+            }
         }
         undoButton?.isEnabled = undoStack.isNotEmpty()
 
         val selected = canvas?.selected
         if (selected != null) {
             addMode = false
+            swipeMode = false
             canvas?.addMode = false
+            canvas?.swipeMode = false
         }
 
         hintView?.text = when {
             selected != null -> "拖动圆点改坐标 · 点其他圆点切换选中"
             addMode -> "加点模式：点屏幕上任意空白位置"
+            swipeMode -> "滑动模式：按住起点拖到终点后松手"
             else -> "拖动圆点改坐标 · 点圆点选中"
         }
-        addButton?.text = if (addMode) "点空白加点中…" else "＋ 加点"
-        addButton?.setTextColor(if (addMode) Palette.ON_PRIMARY else Palette.TEXT)
-        addButton?.background = roundedRect(
-            if (addMode) Palette.PRIMARY else Palette.CARD_2,
-            context.dp(10),
-            if (addMode) Palette.PRIMARY else Palette.BORDER,
-            context.dp(1)
-        )
+        styleModeButton(addButton, addMode, "点空白加点中…", "＋ 加点")
+        styleModeButton(swipeButton, swipeMode, "拖出滑动中…", "＋ 滑动")
         addRow?.visibility = if (selected == null) View.VISIBLE else View.GONE
         rebuildSelectionRow()
+    }
+
+    private fun styleModeButton(button: AppCompatButton?, active: Boolean, activeText: String, idleText: String) {
+        button ?: return
+        button.text = if (active) activeText else idleText
+        button.setTextColor(if (active) Palette.ON_PRIMARY else Palette.TEXT)
+        button.background = roundedRect(
+            if (active) Palette.PRIMARY else Palette.CARD_2,
+            context.dp(10),
+            if (active) Palette.PRIMARY else Palette.BORDER,
+            context.dp(1)
+        )
     }
 
     private fun rebuildSelectionRow() {
@@ -403,8 +460,14 @@ private class EditorCanvas(
     private val onChange: () -> Unit,
     private val onCommit: () -> Unit,
     private val onAdd: (Int, Int) -> Unit,
+    private val onAddSwipe: (Int, Int, Int, Int) -> Unit,
     private val onSelect: () -> Unit,
 ) : View(context) {
+
+    private val baseW = if (script.baseWidth > 0) script.baseWidth else screen.x
+    private val baseH = if (script.baseHeight > 0) script.baseHeight else screen.y
+    private val scaleX = screen.x.toFloat() / baseW
+    private val scaleY = screen.y.toFloat() / baseH
 
     var selected: Step? = null
         set(value) {
@@ -417,6 +480,13 @@ private class EditorCanvas(
 
     var addMode = false
 
+    var swipeMode = false
+        set(value) {
+            field = value
+            if (!value) swipeDragging = false
+            invalidate()
+        }
+
     private var pending: Anchor? = null
     private var dragging = false
     private var emptyDrag = false
@@ -425,9 +495,27 @@ private class EditorCanvas(
     private var origX = 0
     private var origY = 0
 
+    private var swipeDragging = false
+    private var swipeStartRawX = 0f
+    private var swipeStartRawY = 0f
+    private var swipeCurRawX = 0f
+    private var swipeCurRawY = 0f
+
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
     private val dotRadius = context.dp(13)
     private val touchRadius = context.dp(26)
+
+    private fun screenX(base: Int): Int =
+        (base * scaleX).roundToInt().coerceIn(0, screen.x - 1)
+
+    private fun screenY(base: Int): Int =
+        (base * scaleY).roundToInt().coerceIn(0, screen.y - 1)
+
+    private fun baseX(raw: Float): Int =
+        (raw / scaleX).roundToInt().coerceIn(0, baseW - 1)
+
+    private fun baseY(raw: Float): Int =
+        (raw / scaleY).roundToInt().coerceIn(0, baseH - 1)
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -466,6 +554,12 @@ private class EditorCanvas(
         textSize = context.dp(10.5f.toInt()).toFloat()
         setShadowLayer(context.dp(3).toFloat(), 0f, context.dp(1).toFloat(), 0xCC000000.toInt())
     }
+    private val previewLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = context.dp(3).toFloat()
+        color = 0xCCECECEC.toInt()
+        strokeCap = Paint.Cap.ROUND
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -477,32 +571,56 @@ private class EditorCanvas(
         selected?.let { step ->
             val px = if (selectedEnd) step.x2 else step.x
             val py = if (selectedEnd) step.y2 else step.y
-            canvas.drawLine(0f, py.toFloat(), screen.x.toFloat(), py.toFloat(), guide)
-            canvas.drawLine(px.toFloat(), 0f, px.toFloat(), screen.y.toFloat(), guide)
+            val gx = screenX(px)
+            val gy = screenY(py)
+            canvas.drawLine(0f, gy.toFloat(), screen.x.toFloat(), gy.toFloat(), guide)
+            canvas.drawLine(gx.toFloat(), 0f, gx.toFloat(), screen.y.toFloat(), guide)
         }
 
         script.steps.forEachIndexed { index, step ->
+            val x = screenX(step.x)
+            val y = screenY(step.y)
             when (step.type) {
                 StepType.WAIT -> Unit
-                StepType.TAP -> drawDot(canvas, step, step.x, step.y, Palette.GREEN, "${index + 1}", false)
-                StepType.LONG_PRESS -> drawDot(canvas, step, step.x, step.y, Palette.AMBER, "${index + 1}", false)
+                StepType.TAP -> drawDot(canvas, step, x, y, Palette.GREEN, "${index + 1}", false)
+                StepType.LONG_PRESS -> drawDot(canvas, step, x, y, Palette.AMBER, "${index + 1}", false)
                 StepType.SWIPE -> {
                     swipeLine.alpha = if (step.enabled) 255 else 90
                     canvas.drawLine(
-                        step.x.toFloat(), step.y.toFloat(),
-                        step.x2.toFloat(), step.y2.toFloat(),
+                        x.toFloat(), y.toFloat(),
+                        screenX(step.x2).toFloat(), screenY(step.y2).toFloat(),
                         swipeLine
                     )
-                    drawDot(canvas, step, step.x, step.y, Palette.VIOLET, "${index + 1}", false)
-                    drawDot(canvas, step, step.x2, step.y2, Palette.VIOLET, "终", true)
+                    drawDot(canvas, step, x, y, Palette.VIOLET, "${index + 1}", false)
+                    drawDot(canvas, step, screenX(step.x2), screenY(step.y2), Palette.VIOLET, "终", true)
                 }
             }
+        }
+
+        if (swipeDragging) {
+            canvas.drawLine(swipeStartRawX, swipeStartRawY, swipeCurRawX, swipeCurRawY, previewLine)
+            canvas.drawCircle(swipeStartRawX, swipeStartRawY, context.dp(6).toFloat(), fill.apply {
+                color = Palette.PRIMARY
+                alpha = 230
+            })
+            canvas.drawCircle(swipeCurRawX, swipeCurRawY, context.dp(8).toFloat(), fill)
+            canvas.drawText(
+                "${baseX(swipeCurRawX)}, ${baseY(swipeCurRawY)}",
+                swipeCurRawX,
+                swipeCurRawY - context.dp(14),
+                coord
+            )
         }
 
         selected?.let { step ->
             val px = if (selectedEnd) step.x2 else step.x
             val py = if (selectedEnd) step.y2 else step.y
-            canvas.drawText("$px, $py", px.toFloat(), py - (dotRadius + context.dp(10)).toFloat(), coord)
+            canvas.drawText(
+                "$px, $py",
+                screenX(px).toFloat(),
+                (screenY(py) - dotRadius - context.dp(10)).toFloat(),
+                coord
+            )
         }
 
         canvas.restore()
@@ -530,6 +648,52 @@ private class EditorCanvas(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (swipeMode) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    swipeDragging = true
+                    swipeStartRawX = event.rawX
+                    swipeStartRawY = event.rawY
+                    swipeCurRawX = event.rawX
+                    swipeCurRawY = event.rawY
+                    invalidate()
+                    return true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    swipeCurRawX = event.rawX
+                    swipeCurRawY = event.rawY
+                    invalidate()
+                    return true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    if (swipeDragging) {
+                        swipeCurRawX = event.rawX
+                        swipeCurRawY = event.rawY
+                        val dx = swipeCurRawX - swipeStartRawX
+                        val dy = swipeCurRawY - swipeStartRawY
+                        if (sqrt(dx * dx + dy * dy) > context.dp(10)) {
+                            onAddSwipe(
+                                baseX(swipeStartRawX), baseY(swipeStartRawY),
+                                baseX(swipeCurRawX), baseY(swipeCurRawY)
+                            )
+                        }
+                    }
+                    swipeDragging = false
+                    invalidate()
+                    return true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    swipeDragging = false
+                    invalidate()
+                    return true
+                }
+            }
+            return true
+        }
+
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pending = findAnchor(event.rawX, event.rawY)
@@ -556,8 +720,8 @@ private class EditorCanvas(
                         onDragStart()
                     }
                     if (dragging) {
-                        val nx = (origX + dx).toInt().coerceIn(0, screen.x - 1)
-                        val ny = (origY + dy).toInt().coerceIn(0, screen.y - 1)
+                        val nx = (origX + dx / scaleX).roundToInt().coerceIn(0, baseW - 1)
+                        val ny = (origY + dy / scaleY).roundToInt().coerceIn(0, baseH - 1)
                         if (hit.end) {
                             hit.step.x2 = nx
                             hit.step.y2 = ny
@@ -585,10 +749,8 @@ private class EditorCanvas(
                     invalidate()
                     onSelect()
                 } else if (!emptyDrag) {
-                    val x = event.rawX.toInt().coerceIn(0, screen.x - 1)
-                    val y = event.rawY.toInt().coerceIn(0, screen.y - 1)
                     if (addMode) {
-                        onAdd(x, y)
+                        onAdd(baseX(event.rawX), baseY(event.rawY))
                     } else {
                         selected = null
                         onSelect()
@@ -615,13 +777,13 @@ private class EditorCanvas(
         var bestDistance = touchRadius.toFloat()
         script.steps.forEach { step ->
             if (step.type == StepType.WAIT) return@forEach
-            val d1 = distance(rawX, rawY, step.x, step.y)
+            val d1 = distance(rawX, rawY, screenX(step.x), screenY(step.y))
             if (d1 <= bestDistance) {
                 bestDistance = d1
                 best = Anchor(step, false)
             }
             if (step.type == StepType.SWIPE) {
-                val d2 = distance(rawX, rawY, step.x2, step.y2)
+                val d2 = distance(rawX, rawY, screenX(step.x2), screenY(step.y2))
                 if (d2 <= bestDistance) {
                     bestDistance = d2
                     best = Anchor(step, true)

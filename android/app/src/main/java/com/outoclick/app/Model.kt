@@ -73,13 +73,23 @@ data class Script(
     var repeat: Int = 1,
     val steps: MutableList<Step> = mutableListOf(),
     var updatedAt: Long = System.currentTimeMillis(),
+    /** 录制/创建时的屏幕分辨率，用于换机或分辨率变化时按比例缩放 */
+    var baseWidth: Int = 0,
+    var baseHeight: Int = 0,
+    /** 随机节奏：每步延时抖动 ±ms、坐标抖动 ±px；0 表示关闭 */
+    var jitterMs: Int = 0,
+    var jitterPx: Int = 0,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
-        put("schemaVersion", 1)
+        put("schemaVersion", 2)
         put("id", id)
         put("name", name)
         put("repeat", repeat)
         put("updatedAt", updatedAt)
+        put("baseWidth", baseWidth)
+        put("baseHeight", baseHeight)
+        put("jitterMs", jitterMs)
+        put("jitterPx", jitterPx)
         put("steps", JSONArray().apply { steps.forEach { put(it.toJson()) } })
     }
 
@@ -92,6 +102,10 @@ data class Script(
                 name = o.optString("name").ifBlank { "导入脚本" },
                 repeat = o.optInt("repeat", 1).coerceIn(1, 100000),
                 updatedAt = o.optLong("updatedAt", System.currentTimeMillis()),
+                baseWidth = o.optInt("baseWidth", 0),
+                baseHeight = o.optInt("baseHeight", 0),
+                jitterMs = o.optInt("jitterMs", 0).coerceIn(0, 5000),
+                jitterPx = o.optInt("jitterPx", 0).coerceIn(0, 200),
             )
             val array = o.optJSONArray("steps") ?: JSONArray()
             for (i in 0 until array.length()) {

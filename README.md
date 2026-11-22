@@ -3,22 +3,26 @@
 独立 Android App：在手机上预设固定坐标的点击序列，由无障碍服务回放。
 **不需要电脑、不需要 ADB、不需要 Root。**
 
-> 当前版本：MVP `0.3.0`（debug APK），已在 Pixel 5 模拟器 **Android 17 / API 37** 实测：贴边悬浮条、侧滑抽屉、可视化拖点、加点模式、加减点撤销、开始/暂停均通过。
+> 当前版本：MVP `0.4.0`（debug APK），已在 Pixel 5 模拟器 **Android 17 / API 37** 实测：悬浮条、侧滑抽屉、方案保存/另存为/退出、回放落点、随机节奏、画布画滑动、分辨率缩放均通过。
 >
-> **下载 APK**：[outoclick-0.3.0-debug.apk](https://github.com/wmoonlq/autoclick/releases/download/v0.3.0/outoclick-0.3.0-debug.apk) · [Release 说明](https://github.com/wmoonlq/autoclick/releases/tag/v0.3.0) · [迭代记录](CHANGELOG.md)
+> **下载 APK**：[outoclick-0.4.0-debug.apk](https://github.com/wmoonlq/autoclick/releases/download/v0.4.0/outoclick-0.4.0-debug.apk) · [Release 说明](https://github.com/wmoonlq/autoclick/releases/tag/v0.4.0) · [迭代记录](CHANGELOG.md)
 
 ## 截图
 
-| 主界面 | 悬浮条 | 侧滑抽屉 | 可视化编排 | 准星取点 |
+| 主界面 | 悬浮条 | 侧滑抽屉 | 回放落点 | 可视化编排 |
 |---|---|---|---|---|
-| ![主界面](docs/android-main.png) | ![悬浮条](docs/android-handle.png) | ![侧滑抽屉](docs/android-panel.png) | ![可视化编排](docs/android-editor.png) | ![取点](docs/android-pick.png) |
+| ![主界面](docs/android-main.png) | ![悬浮条](docs/android-handle.png) | ![侧滑抽屉](docs/android-panel.png) | ![回放落点](docs/android-preview.png) | ![可视化编排](docs/android-editor.png) |
 
 ## 能做什么
 
 - **iQOO 式游戏助手交互**：贴边半透明悬浮条，单击从侧边滑出工具抽屉，不挡画面、闲置自动淡出
 - **侧滑抽屉**：方案切换、开始/暂停/停止、可视化编排、准星取点、脚本列表、隐藏，一屏直达
-- **全屏可视化编排**：点位直接画在目标 App 上，拖动圆点改坐标；「＋ 加点」模式下点空白新增；支持撤销、改类型、删除
-- **悬浮准星取点**：拖动十字准星到按钮上，点「记录」生成坐标（适合滑动和精细定位）
+- **方案管理**：保存 / 另存为 / 退出当前方案；多套方案一键切换
+- **回放落点预览**：运行时黄色光点 + 编号叠加在画面上，当前步骤高亮，可一键显隐
+- **坐标归一化**：记录方案创建时的分辨率，换机 / 改分辨率按比例缩放
+- **随机节奏**：每步延时 ±120ms、坐标 ±6px（可关、可自定义），仅做通用抖动
+- **全屏可视化编排**：拖动圆点改坐标；「＋ 加点」点空白新增；「＋ 滑动」直接画起点→终点；支持撤销、改类型、删除
+- **悬浮准星取点**：拖动十字准星到按钮上，点「记录」生成坐标
 - **自由摆放 + 贴边**：悬浮条可拖到任意位置，靠近左右边缘自动吸附贴边，位置会记住
 - **隐藏与恢复**：隐藏悬浮条后服务继续运行，从通知栏一键恢复
 - **脚本编排**：点击 / 长按 / 滑动 / 等待；每步可设延时、启用状态；脚本可循环 N 次
@@ -73,13 +77,17 @@ android/app/build/outputs/apk/debug/app-debug.apk
    - 顶部是当前方案 + 方案标签，点一下切换脚本
    - 白色大按钮：开始 / 继续 / 暂停；右侧红色「停止」
    - 工具格：可视化编排、准星取点、脚本列表、隐藏悬浮条
+   - 选项：回放时显示落点 / 随机节奏
+   - 方案：保存 / 另存为 / 退出
    - 开始 / 暂停后抽屉自动收起，不挡目标 App
 5. 可视化编排：
    - 每个点位显示为带编号的圆点，**直接拖动**到目标位置，松手即保存
    - 点「＋ 加点」进入加点模式，再点屏幕空白处新增一个点击点位；选中后可「变长按 / 删除」
+   - 点「＋ 滑动」，按住起点拖到终点松手，直接生成滑动步骤
    - 「撤销」回退上一步，「完成」退出并恢复悬浮条
 6. 准星取点：拖准星到目标位置，底部工具条点「记录点击」；滑动先点「起点」再移到终点点「终点」。
-7. 回到 App 可以微调每一步的坐标、时长、延时和循环次数。
+7. 回放落点：开启后运行时会在画面上显示黄色光点 + 编号，当前步骤白色高亮；停止后自动消失。
+8. 回到 App 可以微调坐标、时长、延时、循环次数和随机节奏（±ms / ±px）。
 
 ## 脚本格式
 
@@ -87,10 +95,14 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "a1b2c3d4e5",
   "name": "每日签到",
   "repeat": 1,
+  "baseWidth": 1080,
+  "baseHeight": 2340,
+  "jitterMs": 120,
+  "jitterPx": 6,
   "steps": [
     { "type": "TAP", "x": 540, "y": 1200, "durationMs": 60, "delayAfterMs": 800, "enabled": true },
     { "type": "LONG_PRESS", "x": 300, "y": 900, "durationMs": 800, "delayAfterMs": 300, "enabled": true },
@@ -100,7 +112,9 @@ android/app/build/outputs/apk/debug/app-debug.apk
 }
 ```
 
-坐标是**屏幕物理像素**，原点在左上角。
+- `x / y / x2 / y2` 是**方案基准分辨率**下的物理像素；回放时按 `当前屏幕 / base` 缩放。
+- `jitterMs` / `jitterPx` 为 0 表示关闭随机节奏；否则每步延时和坐标在该范围内随机抖动。
+- 旧版（schemaVersion 1）没有 base 字段，首次保存时会以当前屏幕补上。
 
 ## 权限与安全
 
@@ -135,9 +149,13 @@ ScriptStore         filesDir/scripts/*.json
 
 ## 已知限制
 
-- **固定坐标**：目标 App 改版、换分辨率、改字体大小后需要重新取点。
+- **固定坐标**：目标 App 改版后需要重新取点；分辨率变化已支持按比例缩放。
 - **仅竖屏**：暂不处理旋转后的坐标换算。
 - **无图像识别**：不会「找按钮」，只按坐标点。
+- **不支持真实录制**：Android 不允许 App 静默读取其他 App 的触控；用可视化加点或 PC + ADB 录制替代。
+- **不支持自动跳过弹窗**：游戏引擎画面无法通过无障碍树识别「确认/关闭」；普通 App 的节点识别留待后续。
+- **无连接超时重连**：本地无障碍服务没有远端连接，不需要倒计时重试。
+- **随机节奏不是防检测**：只是通用延时/坐标抖动，不保证规避平台检测；在线游戏有封号风险。
 - **息屏/锁屏**：无障碍手势在锁屏状态下无法操作目标 App。
 - **系统安全界面**：部分系统弹窗、安全键盘、支付类页面可能拒绝注入。
 - **厂商保活**：MIUI / HyperOS / ColorOS 等可能杀后台，建议把 App 加入电池白名单。
@@ -150,9 +168,11 @@ android/                    独立 Android 工程（主交付物）
   app/src/main/java/com/outoclick/app/
     MainActivity.kt         脚本列表 / 步骤编辑 / 权限引导
     OverlayService.kt       悬浮条、侧滑抽屉、准星、通知、编排入口
-    SidePanel.kt            iQOO 式侧滑抽屉（方案 / 运行 / 工具格）
+    SidePanel.kt            iQOO 式侧滑抽屉（方案 / 运行 / 工具格 / 选项）
     HandleView.kt           贴边悬浮条（状态点 + grip 绘制）
-    VisualEditor.kt         全屏可视化编排（拖点 / 加点模式 / 撤销）
+    PointPreview.kt         回放落点黄色光点 + 编号
+    ToggleChip.kt           GPT 风格开/关胶囊
+    VisualEditor.kt         全屏可视化编排（拖点 / 加点 / 画滑动 / 撤销）
     ClickAccessibilityService.kt  手势注入
     Runner.kt               顺序执行 / 循环 / 暂停停止
     Model.kt / Store.kt     脚本模型与本机 JSON 存储
@@ -194,10 +214,10 @@ adb logcat -s outoclick AndroidRuntime
 
 ## 下一步
 
-- 录制模式（记录真实手指轨迹生成步骤）
-- 可视化编排里直接画滑动路线（起点 + 终点一次完成）
+- 无障碍节点识别（仅普通 App：自动关闭确认框，游戏内不可用）
+- 方案文件导入导出（SAF，不再只走剪贴板）
 - 脚本分组循环 / 条件步骤
-- 导入导出文件（现在走剪贴板）
+- PC + ADB 录制模式（真录触摸轨迹）
 - 横屏与旋转坐标换算
 - 运行日志与失败截图（需要 MediaProjection）
 - 计划任务（每天定时执行）

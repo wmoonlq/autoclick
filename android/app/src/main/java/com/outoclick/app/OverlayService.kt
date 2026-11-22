@@ -1,4 +1,4 @@
-package com.outoclick.app
+﻿package com.outoclick.app
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -28,6 +28,7 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.core.app.NotificationCompat
 import kotlin.math.abs
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class OverlayService : Service() {
 
@@ -63,6 +64,8 @@ class OverlayService : Service() {
 
     private var editor: VisualEditor? = null
     private var editing = false
+    private var preview: PointPreview? = null
+    private var runningScript: Script? = null
     private var lastStatus = "就绪"
 
     private val fadeHandler = Handler(Looper.getMainLooper())
@@ -123,6 +126,60 @@ class OverlayService : Service() {
                 switchScript(id)
                 sidePanel?.refresh()
             }
+
+            override fun onSave() {
+                val script = store.loaded() ?: run {
+                    toast("没有加载方案")
+                    return
+                }
+                store.save(script)
+                toast("已保存：${script.name}")
+                sidePanel?.refresh()
+            }
+
+            override fun onSaveAs() {
+                val script = store.loaded() ?: run {
+                    toast("没有加载方案")
+                    return
+                }
+                if (Runner.running) Runner.stop()
+                hidePreview()
+                val copy = store.duplicate(script)
+                store.setActive(copy.id)
+                toast("已另存为「${copy.name}」")
+                sidePanel?.refresh()
+            }
+
+            override fun onUnload() {
+                if (Runner.running) Runner.stop()
+                hidePreview()
+                store.unload()
+                toast("已退出方案，可从方案标签重新加载")
+                sidePanel?.refresh()
+            }
+
+            override fun onPointsToggle(enabled: Boolean) {
+                store.setShowPoints(enabled)
+                if (enabled && Runner.running) {
+                    showPreview(runningScript ?: store.loaded())
+                } else {
+                    hidePreview()
+                }
+                sidePanel?.refresh()
+            }
+
+            override fun onJitterToggle(enabled: Boolean) {
+                val script = store.loaded() ?: run {
+                    toast("先选择一个方案")
+                    sidePanel?.refresh()
+                    return
+                }
+                script.jitterMs = if (enabled) 120 else 0
+                script.jitterPx = if (enabled) 6 else 0
+                store.save(script)
+                toast(if (enabled) "随机节奏：±120ms / ±6px" else "随机节奏已关闭")
+                sidePanel?.refresh()
+            }
         })
 
         if (store.ballVisible()) addHandle()
@@ -139,12 +196,17 @@ class OverlayService : Service() {
         }
         Runner.onFinished = { text ->
             mainHandler.post {
+                hidePreview()
+                runningScript = null
                 sidePanel?.refresh()
                 pickBarStatus?.text = text
                 updateNotification(text)
                 updateHandleState()
                 scheduleFade()
             }
+        }
+        Runner.onStep = { index ->
+            preview?.highlight(index)
         }
     }
 
@@ -168,9 +230,12 @@ class OverlayService : Service() {
         Runner.stop()
         Runner.onStatus = null
         Runner.onFinished = null
+        Runner.onStep = null
         editor?.hide()
         editor = null
         editing = false
+        hidePreview()
+        runningScript = null
         sidePanel?.close(animated = false)
         sidePanel = null
         removeCrosshair()
@@ -423,7 +488,7 @@ class OverlayService : Service() {
             updateHandleState()
             return
         }
-        val script = store.active()
+        val script = store.loaded()
         if (script == null) {
             toast("没有脚本，点悬浮条打开面板")
             return
@@ -434,11 +499,25 @@ class OverlayService : Service() {
         }
         store.setActive(script.id)
         if (Runner.start(script)) {
+            runningScript = script
             toast("开始：${script.name}")
+            showPreview(script)
         } else {
+            runningScript = null
             toast("脚本没有启用的步骤")
         }
         updateHandleState()
+    }
+
+    private fun showPreview(script: Script?) {
+        if (script == null || !store.showPoints()) return
+        if (preview == null) preview = PointPreview(this, wm)
+        preview?.show(script)
+    }
+
+    private fun hidePreview() {
+        preview?.hide()
+        preview = null
     }
 
     private fun switchScript(id: String) {
@@ -452,7 +531,7 @@ class OverlayService : Service() {
     // ------------------------------------------------------------------
     private fun enterPickMode() {
         if (!running || editing || pickStage != 0) return
-        val script = store.active()
+        val script = store.loaded()
         if (script == null) {
             toast("请先在 App 里新建脚本")
             return
@@ -539,16 +618,17 @@ class OverlayService : Service() {
 
     private fun recordTap() {
         val point = crosshairCenter() ?: return
-        val script = store.active() ?: return
-        script.steps.add(Step.tap(point.x, point.y, 300))
+        val script = store.loaded() ?: return
+        val base = basePoint(script, point)
+        script.steps.add(Step.tap(base.x, base.y, 300))
         store.save(script)
-        toast("已记录点击 (${point.x}, ${point.y})")
-        setPickStatus("已记录 (${point.x}, ${point.y}) · 共 ${script.steps.size} 步")
+        toast("已记录点击 (${base.x}, ${base.y})")
+        setPickStatus("已记录 (${base.x}, ${base.y}) · 共 ${script.steps.size} 步")
     }
 
     private fun recordSwipe() {
         val point = crosshairCenter() ?: return
-        val script = store.active() ?: return
+        val script = store.loaded() ?: return
         if (pickStage != 2) {
             swipeStart = point
             pickStage = 2
@@ -557,13 +637,23 @@ class OverlayService : Service() {
             return
         }
         val start = swipeStart ?: point
-        script.steps.add(Step.swipe(start.x, start.y, point.x, point.y, 300))
+        val baseStart = basePoint(script, start)
+        val baseEnd = basePoint(script, point)
+        script.steps.add(Step.swipe(baseStart.x, baseStart.y, baseEnd.x, baseEnd.y, 300))
         store.save(script)
-        toast("已记录滑动 (${start.x},${start.y}) → (${point.x},${point.y})")
+        toast("已记录滑动 (${baseStart.x},${baseStart.y}) → (${baseEnd.x},${baseEnd.y})")
         pickSwipeButton?.text = "起点"
         swipeStart = null
         pickStage = 1
         setPickStatus("共 ${script.steps.size} 步 · 可继续取点")
+    }
+
+    private fun basePoint(script: Script, point: Point): Point {
+        val baseW = if (script.baseWidth > 0) script.baseWidth else screenW
+        val baseH = if (script.baseHeight > 0) script.baseHeight else screenH
+        val x = (point.x.toFloat() * baseW / screenW).roundToInt().coerceIn(0, baseW - 1)
+        val y = (point.y.toFloat() * baseH / screenH).roundToInt().coerceIn(0, baseH - 1)
+        return Point(x, y)
     }
 
     private fun cancelPick() {
@@ -580,7 +670,7 @@ class OverlayService : Service() {
     private fun enterVisualEditor() {
         if (!running || editing) return
         if (pickStage != 0) cancelPick()
-        val script = store.active()
+        val script = store.loaded()
         if (script == null) {
             toast("没有脚本，先去 App 新建")
             return

@@ -22,6 +22,11 @@ class ScriptStore(context: Context) {
     }
 
     fun save(script: Script) {
+        if (script.baseWidth <= 0 || script.baseHeight <= 0) {
+            val size = Screen.size(app)
+            script.baseWidth = size.x
+            script.baseHeight = size.y
+        }
         script.updatedAt = System.currentTimeMillis()
         File(dir, "${script.id}.json").writeText(script.toJson().toString(2))
     }
@@ -60,15 +65,26 @@ class ScriptStore(context: Context) {
     fun activeId(): String? = prefs.getString(KEY_ACTIVE, null)
 
     fun setActive(id: String) {
-        prefs.edit().putString(KEY_ACTIVE, id).apply()
+        prefs.edit().putString(KEY_ACTIVE, id).putBoolean(KEY_UNLOADED, false).apply()
     }
 
     fun active(): Script? {
+        if (isUnloaded()) return null
         val id = activeId() ?: list().firstOrNull()?.id ?: return null
         return load(id) ?: list().firstOrNull()
     }
 
+    /** 悬浮窗使用：退出方案后返回 null，不再回退到第一个脚本 */
+    fun loaded(): Script? = active()
+
+    fun isUnloaded(): Boolean = prefs.getBoolean(KEY_UNLOADED, false)
+
+    fun unload() {
+        prefs.edit().putBoolean(KEY_UNLOADED, true).apply()
+    }
+
     fun ensureSeed(): Script {
+        prefs.edit().putBoolean(KEY_UNLOADED, false).apply()
         active()?.let { return it }
         val demos = list()
         if (demos.isNotEmpty()) return demos.first()
@@ -76,6 +92,12 @@ class ScriptStore(context: Context) {
         save(demo)
         setActive(demo.id)
         return demo
+    }
+
+    fun showPoints(): Boolean = prefs.getBoolean(KEY_SHOW_POINTS, true)
+
+    fun setShowPoints(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_POINTS, enabled).apply()
     }
 
     fun overlayX(): Int = prefs.getInt(KEY_X, -1)
@@ -88,8 +110,10 @@ class ScriptStore(context: Context) {
 
     companion object {
         private const val KEY_ACTIVE = "active_script"
+        private const val KEY_UNLOADED = "active_unloaded"
         private const val KEY_X = "overlay_x"
         private const val KEY_Y = "overlay_y"
         private const val KEY_BALL_VISIBLE = "ball_visible"
+        private const val KEY_SHOW_POINTS = "show_points"
     }
 }

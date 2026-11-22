@@ -1,4 +1,4 @@
-package com.outoclick.app
+﻿package com.outoclick.app
 
 import android.content.Context
 import android.graphics.Color
@@ -13,7 +13,9 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+
 import kotlin.math.min
 
 /**
@@ -37,6 +39,11 @@ class SidePanel(
         fun onOpenApp()
         fun onHide()
         fun onSelectScript(id: String)
+        fun onSave()
+        fun onSaveAs()
+        fun onUnload()
+        fun onPointsToggle(enabled: Boolean)
+        fun onJitterToggle(enabled: Boolean)
     }
 
     private var scrim: FrameLayout? = null
@@ -49,6 +56,8 @@ class SidePanel(
     private var mainLabel: TextView? = null
     private var statusView: TextView? = null
     private var statePill: TextView? = null
+    private var pointsToggle: ToggleChip? = null
+    private var jitterToggle: ToggleChip? = null
     private var chipsSignature: String? = null
     private var side = Gravity.END
 
@@ -115,6 +124,8 @@ class SidePanel(
         mainLabel = null
         statusView = null
         statePill = null
+        pointsToggle = null
+        jitterToggle = null
         chipsSignature = null
 
         val remove = {
@@ -139,19 +150,25 @@ class SidePanel(
 
     fun refresh() {
         if (!isOpen) return
-        val script = store.active()
-        schemeName?.text = script?.name ?: "没有脚本"
-        schemeMeta?.text = script?.let {
-            "${it.steps.size} 步 · 循环 ${it.repeat} 次 · ${it.steps.count { s -> s.enabled }} 步启用"
-        } ?: "去 App 里新建一个脚本"
+        val script = store.loaded()
+        schemeName?.text = script?.name ?: "未加载方案"
+        schemeMeta?.text = if (script == null) {
+            "点上方方案标签加载，或去 App 里新建"
+        } else {
+            "${script.steps.size} 步 · 循环 ${script.repeat} 次 · ${script.steps.count { s -> s.enabled }} 步启用"
+        }
         statusView?.text = statusProvider()
         updateStatePill()
 
-        val signature = store.list().joinToString("|") { "${it.id}:${it.name}" } + "#" + (script?.id ?: "")
+        val activeId = store.activeId()
+        val signature = store.list().joinToString("|") { "${it.id}:${it.name}" } + "#" + (activeId ?: "")
         if (signature != chipsSignature) {
             chipsSignature = signature
-            rebuildChips(script?.id)
+            rebuildChips(activeId)
         }
+
+        pointsToggle?.isOn = store.showPoints()
+        jitterToggle?.isOn = script != null && (script.jitterMs > 0 || script.jitterPx > 0)
         updateMain()
     }
 
@@ -168,30 +185,50 @@ class SidePanel(
         }
 
         panel.addView(header())
-        panel.addView(spacer(context.dp(14)))
 
-        panel.addView(sectionLabel("当前方案"))
+        val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(spacer(context.dp(14)))
+        content.addView(sectionLabel("当前方案"))
         schemeName = context.tv("", 16f, Palette.TEXT, bold = true).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         }
-        panel.add(schemeName, topMargin = context.dp(4))
-        schemeMeta = context.tv("", 10.5f, Palette.MUTED).apply { maxLines = 1 }
-        panel.add(schemeMeta, topMargin = context.dp(2))
+        content.add(schemeName, topMargin = context.dp(4))
+        schemeMeta = context.tv("", 10.5f, Palette.MUTED).apply { maxLines = 2 }
+        content.add(schemeMeta, topMargin = context.dp(2))
 
         chipsRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         val chipsScroll = HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = false
             addView(chipsRow)
         }
-        panel.add(chipsScroll, height = context.dp(36), topMargin = context.dp(8))
+        content.add(chipsScroll, height = context.dp(36), topMargin = context.dp(8))
 
-        panel.addView(spacer(context.dp(16)))
-        panel.addView(primaryRow())
-        panel.addView(spacer(context.dp(18)))
-        panel.addView(sectionLabel("工具"))
-        panel.add(toolGrid(), topMargin = context.dp(8))
-        panel.addView(View(context), LinearLayout.LayoutParams(MATCH, 0, 1f))
+        content.addView(spacer(context.dp(16)))
+        content.addView(primaryRow())
+        content.addView(spacer(context.dp(18)))
+        content.addView(sectionLabel("工具"))
+        content.add(toolGrid(), topMargin = context.dp(8))
+
+        content.addView(spacer(context.dp(18)))
+        content.addView(sectionLabel("选项"))
+        val points = buildPointsToggle()
+        pointsToggle = points
+        content.add(switchRow("回放时显示落点", points), topMargin = context.dp(8))
+        val jitter = buildJitterToggle()
+        jitterToggle = jitter
+        content.add(switchRow("随机节奏（±120ms / ±6px）", jitter), topMargin = context.dp(6))
+
+        content.addView(spacer(context.dp(18)))
+        content.addView(sectionLabel("方案"))
+        content.add(schemeButtons(), topMargin = context.dp(8))
+
+        val scroll = ScrollView(context).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = false
+            addView(content)
+        }
+        panel.addView(scroll, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
         statusView = context.tv(statusProvider(), 10.5f, Palette.MUTED).apply {
             maxLines = 3
@@ -203,6 +240,44 @@ class SidePanel(
             topMargin = context.dp(6)
         )
         return panel
+    }
+
+    private fun buildPointsToggle(): ToggleChip = ToggleChip(context).apply {
+        isOn = store.showPoints()
+        onToggle = { callbacks.onPointsToggle(it) }
+    }
+
+    private fun buildJitterToggle(): ToggleChip = ToggleChip(context).apply {
+        val script = store.loaded()
+        isOn = script != null && (script.jitterMs > 0 || script.jitterPx > 0)
+        onToggle = { callbacks.onJitterToggle(it) }
+    }
+
+    private fun switchRow(label: String, toggle: ToggleChip): LinearLayout {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(
+            context.tv(label, 11.5f, Palette.TEXT),
+            LinearLayout.LayoutParams(0, WRAP, 1f)
+        )
+        row.addView(toggle, LinearLayout.LayoutParams(context.dp(52), context.dp(30)))
+        return row
+    }
+
+    private fun schemeButtons(): LinearLayout {
+        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        val save = context.btn("保存", Palette.CARD_2, Palette.TEXT) { callbacks.onSave() }
+        val saveAs = context.btn("另存为", Palette.CARD_2, Palette.TEXT) { callbacks.onSaveAs() }
+        val exit = context.btn("退出", Palette.CARD_2, Palette.MUTED) { callbacks.onUnload() }
+        listOf(save, saveAs, exit).forEachIndexed { index, button ->
+            button.textSize = 11.5f
+            row.addView(button, LinearLayout.LayoutParams(0, context.dp(38), 1f).apply {
+                rightMargin = if (index < 2) context.dp(6) else 0
+            })
+        }
+        return row
     }
 
     private fun header(): LinearLayout {
@@ -382,6 +457,14 @@ class SidePanel(
         val button = mainButton ?: return
         val label = mainLabel ?: return
         val icon = mainIcon ?: return
+        if (store.loaded() == null) {
+            label.text = "先选择方案"
+            label.setTextColor(Palette.MUTED)
+            icon.setImageResource(R.drawable.ic_action_play)
+            icon.setColorFilter(Palette.MUTED)
+            button.background = roundedRect(Palette.CARD_3, context.dp(14), Palette.BORDER, context.dp(1))
+            return
+        }
         when {
             Runner.running && Runner.paused -> {
                 label.text = "继续"
