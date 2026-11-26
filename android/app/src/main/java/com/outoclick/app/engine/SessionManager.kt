@@ -2,6 +2,7 @@ package com.outoclick.app.engine
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import com.outoclick.app.ClickAccessibilityService
 import com.outoclick.app.Screen
 import com.outoclick.app.data.AppRepository
@@ -80,6 +81,7 @@ class SessionManager(
 
         val size = Screen.size(context)
         val rotation = Screen.rotation(context)
+        Log.d("SessionManager", "start display=${size.x}x${size.y} rotation=$rotation target=${app.packageName}")
         val runSnapshot = RunSnapshot.from(plan, app, buttons, size.x, size.y, rotation)
         if (runSnapshot.steps.none { it.enabled }) {
             return StartResult.Failure("方案没有启用的步骤")
@@ -284,6 +286,10 @@ class SessionManager(
                         val press = Jitter.press(
                             step.pressMs,
                             if (snap.jitter.enabled) snap.jitter.pressMs else 0,
+                        )
+                        Log.d(
+                            "SessionManager",
+                            "tap x=$x y=$y press=$press anchor=${step.anchorX},${step.anchorY} display=${snap.displayW}x${snap.displayH}",
                         )
 
                         val ok = tapWithRetry(session, x, y, press)

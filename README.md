@@ -3,9 +3,10 @@
 独立 Android App：把固定点位编排成方案，通过无障碍服务回放。
 **不需要电脑、不需要 ADB、不需要 Root。**
 
-> 当前版本：**v0.5.0（v1 重写，debug APK）**，minSdk 24 / targetSdk 34。
-> **下载 APK**：[outoclick-0.5.0-debug.apk](releases/outoclick-0.5.0-debug.apk) · [SHA256](releases/outoclick-0.5.0-debug.apk.sha256)
+> 当前版本：**v0.5.1（v1 重写，debug APK）**，minSdk 24 / targetSdk 34。
+> **下载 APK**：[outoclick-0.5.1-debug.apk](releases/outoclick-0.5.1-debug.apk) · [SHA256](releases/outoclick-0.5.1-debug.apk.sha256)
 > 已在 Pixel 5 模拟器 **Android 17 / API 37** 完成核心链路验证：目标应用绑定、按钮库/复用、方案编排、SQLite 落库、运行会话、悬浮球急停、Home 暂停、force-stop 启动对账。
+> **0.5.1 修复**：运行前等待编辑层/菜单从 WindowManager 移除，避免第一下点击落到自己的 overlay 上；已用 Clock `+` 按钮实测打开搜索页。
 >
 > 需求基线：`产品功能示意图/数据实体建模.md`（v4）+ `产品功能示意图/测试用例-v1.md`。
 > 完整 v1 用例还需要配套「探针 App」逐条回归，当前完成的是核心闭环与主要 P0。
@@ -244,10 +245,13 @@ adb logcat -s outoclick AndroidRuntime
 - 安装启动、SQLite 旧脚本迁移（2 个旧方案）
 - 创建方案（3/10）、绑定 Clock、添加点位、单点设置、保存
 - 运行 1 步 1 轮 → `FINISHED / COMPLETE / ok_count=1`
+- **实际落点**：Clock `+` 按钮 → 真实打开「Search for a city」
 - 改成 99 轮运行 → 悬浮球单击 → `STOPPED / USER / ok_count=2`
 - 运行中按 Home → `PAUSED / TARGET_MISMATCH`；返回 Clock 后可继续
 - 运行中 `am force-stop` → 重启后 `STOPPED / KILLED / PROCESS_KILLED`
 - 单元测试：`TimelineTest`、`JitterTest` 全部通过
+
+![真实点击结果：Clock + 按钮 → Search for a city](docs/v1-click-result.png)
 
 ## 下一步
 

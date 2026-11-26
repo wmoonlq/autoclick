@@ -1,5 +1,22 @@
 # 迭代记录
 
+## v0.5.1 · 2026-11-27
+
+### 修复
+
+- **运行第一下点击打在自己的 overlay 上**：从工具条/悬浮球菜单点「运行」时，编辑画布或菜单还没从 WindowManager 完全移除，`dispatchGesture` 的第一次点击会被自己的 overlay 消费，表现为 `ok_count=1` 但目标 App 没反应。
+  - 修复：`startRun` 先隐藏工具条/菜单/设置弹窗，等待 400ms 再启动会话派发第一下。
+  - 实测：Clock 右下角 `+` 按钮 → 真实打开「Search for a city」页面，目标 App 收到点击。
+- 增加 `SessionManager` / `ClickAccessibilityService` 的点击坐标与完成日志，便于后续排查。
+
+### 验证
+
+- `SessionManager: start display=1080x2340`
+- `SessionManager: tap x=542 y=1773 anchor=0.5,0.7566`
+- `ClickAccessibility: gesture completed`
+- Clock 页面实际跳转「Search for a city」
+- 其余会话状态/暂停/对账逻辑沿用 v0.5.0 的验证结果。
+
 ## v0.5.0 · 2026-11-27
 
 按 `产品功能示意图/数据实体建模 v4` + `测试用例-v1.md` 重写 Android 端。

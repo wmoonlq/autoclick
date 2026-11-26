@@ -1,9 +1,10 @@
 # Android v1 技术设计与验证记录
 
 - 日期：2026-11-27
-- 版本：outoclick `0.5.0`
+- 版本：outoclick `0.5.1`
 - 需求基线：`产品功能示意图/数据实体建模.md`（v4）、`产品功能示意图/测试用例-v1.md`
 - 状态：核心闭环已实现并在 Pixel 5 / Android 17 模拟器验证；v1 全量用例待探针 App 回归。
+- 0.5.1 修复：运行前等待自己的编辑层/菜单从 WindowManager 移除，避免第一下点击打在自己的 overlay 上。
 
 ---
 
@@ -242,7 +243,28 @@ PAUSED --权限撤销--> FAILED
 | 运行中按 Home | `PAUSED / TARGET_MISMATCH` |
 | 返回目标后继续 | `RUNNING`，未重复已完成点击 |
 | 运行中 `am force-stop` | 重启后 `STOPPED / KILLED / PROCESS_KILLED` |
+| Clock `+` 按钮实际点击 | 真实打开「Search for a city」，证明注入落到目标 App |
 | 单元测试 | `TimelineTest` 6 条、`JitterTest` 3 条通过 |
+
+点击落点证据：`docs/v1-click-result.png`（Clock 搜索页 + 悬浮球）。
+
+### 关于「ok_count 增加但目标没反应」
+
+`dispatchGesture` 的 `onCompleted` 只代表系统接受了手势并完成，不代表落点一定在目标 App。若启动瞬间自己的全屏编辑层/菜单还没移除，第一下会打在自己的 overlay 上。`startRun` 现在会：
+
+1. `menu.dismiss()`；
+2. `editor.hide()` / 关闭设置弹窗；
+3. 等待 400ms；
+4. 再调用 `SessionManager.start()` 派发第一下。
+
+日志（0.5.1）：
+
+```
+SessionManager: start display=1080x2340
+SessionManager: tap x=542 y=1773 anchor=0.5,0.7566
+ClickAccessibility: tap x=542 y=1773 duration=71
+ClickAccessibility: gesture completed
+```
 
 未回归：旋转、息屏/锁屏、通知被划掉、看门狗超时、系统设置硬停、v1 全量用例。
 

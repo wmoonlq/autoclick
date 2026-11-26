@@ -464,14 +464,23 @@ class AutomationService : Service() {
             toast("先选择一个方案")
             return
         }
-        when (val result = sessions.start(id)) {
-            is StartResult.Failure -> toast(result.message)
-            StartResult.Success -> {
-                hideToolbar()
-                addBall()
-                refreshUi()
+
+        // 先把编辑画布/菜单/设置弹窗移除，再等窗口真正从 WindowManager 消失。
+        // 否则第一下 dispatchGesture 会打在自己还没移除的 overlay 上：
+        // 会话显示成功，但目标 App 实际没收到点击。
+        menu?.dismiss()
+        menu = null
+        hideToolbar()
+        mainHandler.postDelayed({
+            if (!running) return@postDelayed
+            when (val result = sessions.start(id)) {
+                is StartResult.Failure -> toast(result.message)
+                StartResult.Success -> {
+                    addBall()
+                    refreshUi()
+                }
             }
-        }
+        }, 400L)
     }
 
     private fun toggleRun() {

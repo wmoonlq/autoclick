@@ -43,6 +43,7 @@ class ClickAccessibilityService : AccessibilityService() {
 
     suspend fun tap(x: Int, y: Int, durationMs: Int): Boolean {
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+        android.util.Log.d("ClickAccessibility", "tap x=$x y=$y duration=$durationMs")
         return dispatch(path, durationMs)
     }
 
@@ -68,10 +69,12 @@ class ClickAccessibilityService : AccessibilityService() {
                     .build()
                 val callback = object : GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) {
+                        android.util.Log.d("ClickAccessibility", "gesture completed")
                         if (cont.isActive) cont.resume(true)
                     }
 
                     override fun onCancelled(gestureDescription: GestureDescription?) {
+                        android.util.Log.d("ClickAccessibility", "gesture cancelled")
                         if (cont.isActive) cont.resume(false)
                     }
                 }

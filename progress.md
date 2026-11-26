@@ -2,7 +2,7 @@
 
 - 更新：2026-11-27
 - 主交付物：**Android 独立 App**（`android/`）
-- 当前版本：**0.5.0（v1 重写）**
+- 当前版本：**0.5.1（v1 重写，点击落点修复）**
 - 需求基线：`产品功能示意图/数据实体建模.md`（v4）+ `产品功能示意图/测试用例-v1.md`
 - 仓库：https://github.com/wmoonlq/autoclick
 
@@ -28,6 +28,7 @@
 - 安装启动、旧脚本迁移（2 个方案）
 - 创建方案（3/10）、绑定 Clock、添加点位、单点设置、保存
 - 1 步 1 轮 → `FINISHED / COMPLETE / ok_count=1`
+- Clock `+` 按钮实际点击 → 打开「Search for a city」（0.5.1 修复后）
 - 99 轮运行中单击悬浮球 → `STOPPED / USER / ok_count=2`
 - 运行中按 Home → `PAUSED / TARGET_MISMATCH`；返回后继续
 - 运行中 `am force-stop` → 重启后 `STOPPED / KILLED / PROCESS_KILLED`
