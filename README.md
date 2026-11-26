@@ -4,6 +4,7 @@
 **不需要电脑、不需要 ADB、不需要 Root。**
 
 > 当前版本：**v0.5.0（v1 重写，debug APK）**，minSdk 24 / targetSdk 34。
+> **下载 APK**：[outoclick-0.5.0-debug.apk](releases/outoclick-0.5.0-debug.apk) · [SHA256](releases/outoclick-0.5.0-debug.apk.sha256)
 > 已在 Pixel 5 模拟器 **Android 17 / API 37** 完成核心链路验证：目标应用绑定、按钮库/复用、方案编排、SQLite 落库、运行会话、悬浮球急停、Home 暂停、force-stop 启动对账。
 >
 > 需求基线：`产品功能示意图/数据实体建模.md`（v4）+ `产品功能示意图/测试用例-v1.md`。
