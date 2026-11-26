@@ -3,12 +3,16 @@ package com.outoclick.app.ui
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import com.outoclick.app.Palette
 import com.outoclick.app.dp
+
+enum class BallState { IDLE, RUNNING, PAUSED }
 
 /**
  * 常驻悬浮球。规范要求它不可被隐藏，运行中单击 = 立即停止。
@@ -17,6 +21,12 @@ import com.outoclick.app.dp
 class FloatingBallView(context: Context) : View(context) {
 
     var stateColor: Int = Palette.MUTED
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    var state: BallState = BallState.IDLE
         set(value) {
             field = value
             invalidate()
@@ -78,18 +88,56 @@ class FloatingBallView(context: Context) : View(context) {
         canvas.drawCircle(cx, cy, radius, body)
         canvas.drawCircle(cx, cy, radius, border)
 
-        icon.color = stateColor
-        val arm = radius * 0.42f
-        canvas.drawCircle(cx, cy, arm * 0.42f, icon)
-        canvas.drawLine(cx - arm, cy, cx - arm * 0.55f, cy, icon)
-        canvas.drawLine(cx + arm * 0.55f, cy, cx + arm, cy, icon)
-        canvas.drawLine(cx, cy - arm, cx, cy - arm * 0.55f, icon)
-        canvas.drawLine(cx, cy + arm * 0.55f, cx, cy + arm, icon)
-
-        val dot = Paint(icon).apply {
+        val symbol = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = stateColor
         }
+        when (state) {
+            BallState.IDLE -> {
+                icon.color = stateColor
+                val arm = radius * 0.42f
+                canvas.drawCircle(cx, cy, arm * 0.42f, icon)
+                canvas.drawLine(cx - arm, cy, cx - arm * 0.55f, cy, icon)
+                canvas.drawLine(cx + arm * 0.55f, cy, cx + arm, cy, icon)
+                canvas.drawLine(cx, cy - arm, cx, cy - arm * 0.55f, icon)
+                canvas.drawLine(cx, cy + arm * 0.55f, cx, cy + arm, icon)
+            }
+
+            BallState.RUNNING -> {
+                // 暂停符号：两根圆角竖条
+                val barWidth = radius * 0.18f
+                val barHeight = radius * 0.72f
+                val gap = radius * 0.16f
+                val top = cy - barHeight / 2f
+                val bottom = cy + barHeight / 2f
+                val radiusPx = barWidth / 2f
+                canvas.drawRoundRect(
+                    RectF(cx - gap / 2f - barWidth, top, cx - gap / 2f, bottom),
+                    radiusPx,
+                    radiusPx,
+                    symbol,
+                )
+                canvas.drawRoundRect(
+                    RectF(cx + gap / 2f, top, cx + gap / 2f + barWidth, bottom),
+                    radiusPx,
+                    radiusPx,
+                    symbol,
+                )
+            }
+
+            BallState.PAUSED -> {
+                // 继续符号：播放三角
+                val path = Path().apply {
+                    moveTo(cx - radius * 0.28f, cy - radius * 0.42f)
+                    lineTo(cx - radius * 0.28f, cy + radius * 0.42f)
+                    lineTo(cx + radius * 0.42f, cy)
+                    close()
+                }
+                canvas.drawPath(path, symbol)
+            }
+        }
+
+        val dot = Paint(symbol).apply { color = stateColor }
         canvas.drawCircle(cx + radius * 0.58f, cy - radius * 0.58f, context.dp(3).toFloat(), dot)
     }
 

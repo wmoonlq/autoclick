@@ -190,6 +190,7 @@ class SessionManager(
     fun onForegroundPackage(packageName: String) {
         val session = current ?: return
         if (!session.status.isActive) return
+        if (Guards.isImePackage(context, packageName)) return
         if (session.foregroundPackage != packageName) {
             session.foregroundPackage = packageName
             repo.persistSession(session)

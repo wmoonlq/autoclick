@@ -165,7 +165,7 @@ class MainActivity : AppCompatActivity() {
             }, weight(1f))
         } else {
             val activePlan = repo.read().activePlan()
-            row.addView(btn("启动悬浮球", Palette.PRIMARY, Palette.ON_PRIMARY) {
+            row.addView(btn("启动服务", Palette.PRIMARY, Palette.ON_PRIMARY) {
                 startOverlay(ACTION_START)
             }, weight(1f))
             if (activePlan != null) {
@@ -370,9 +370,9 @@ class MainActivity : AppCompatActivity() {
         card.addView(tv("悬浮球", 13f, Palette.MUTED, true))
         card.addView(tv(
             if (AutomationService.running) {
-                "悬浮球运行中。运行中单击悬浮球立即停止；长按打开菜单。"
+                "服务运行中。悬浮球只在目标应用前台显示：停止单击开始，运行中单击暂停，长按停止；停止时长按打开操作边栏。"
             } else {
-                "启动后悬浮球常驻，不会自动隐藏；编辑工具条可以由它显示/隐藏。"
+                "启动服务后，悬浮球只在绑定的目标应用前台显示；主页面/桌面不会出现，不会挡住触摸。"
             },
             12f,
             if (AutomationService.running) Palette.GREEN else Palette.MUTED,
@@ -383,12 +383,12 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         if (AutomationService.running) {
-            row.addView(btn("停止悬浮球", Palette.RED, Palette.TEXT) {
+            row.addView(btn("停止服务", Palette.RED, Palette.TEXT) {
                 stopService(Intent(this@MainActivity, AutomationService::class.java))
                 render()
             }, weight(1f))
         } else {
-            row.addView(btn("启动悬浮球", Palette.PRIMARY, Palette.ON_PRIMARY) {
+            row.addView(btn("启动服务", Palette.PRIMARY, Palette.ON_PRIMARY) {
                 startOverlay(ACTION_START)
             }, weight(1f))
         }
@@ -428,8 +428,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startEdit(planId: String) {
+        val plan = repo.read().plan(planId) ?: return
+        if (plan.targetAppId == null) {
+            showBindPicker(plan, thenEdit = true)
+            return
+        }
         if (!Settings.canDrawOverlays(this)) {
-            showPermissionDialog("需要悬浮窗权限", "编辑工具条要覆盖在目标应用上，请先授权。") {
+            showPermissionDialog("需要悬浮窗权限", "编辑画布要覆盖在目标应用上，请先授权。") {
                 runCatching {
                     startActivity(
                         Intent(
@@ -446,12 +451,17 @@ class MainActivity : AppCompatActivity() {
             .setAction(ACTION_EDIT)
             .putExtra(EXTRA_PLAN_ID, planId)
         ContextCompat.startForegroundService(this, intent)
-        toast("已打开编辑工具条，请切到目标应用")
+        toast("已进入编辑；切到目标应用后显示悬浮球和操作边栏")
     }
 
     private fun prepareRun(planId: String) {
+        val plan = repo.read().plan(planId) ?: return
+        if (plan.targetAppId == null) {
+            showBindPicker(plan, thenEdit = false)
+            return
+        }
         if (!Settings.canDrawOverlays(this)) {
-            showPermissionDialog("需要悬浮窗权限", "运行控制依赖常驻悬浮球，请先授权。") {
+            showPermissionDialog("需要悬浮窗权限", "运行控制依赖目标应用上的悬浮球，请先授权。") {
                 runCatching {
                     startActivity(
                         Intent(
@@ -471,8 +481,46 @@ class MainActivity : AppCompatActivity() {
         }
         repo.setActivePlan(planId)
         startOverlay(ACTION_START)
-        toast("已设为当前方案。切到目标应用后，点悬浮球选择「开始当前方案」")
+        toast("服务已启动；切到目标应用后悬浮球才会出现")
         render()
+    }
+
+    /**
+     * 先绑定目标应用再进入编辑/运行；悬浮球只在目标应用前台显示。
+     */
+    private fun showBindPicker(plan: Plan, thenEdit: Boolean) {
+        val apps = AppGraph.resolver.launchableApps()
+        if (apps.isEmpty()) {
+            toast("没有找到可绑定的应用")
+            return
+        }
+        val labels = apps.map { "${it.label}\n${it.packageName}" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("选择目标应用")
+            .setItems(labels) { _, which ->
+                val app = apps[which]
+                val size = Screen.size(this)
+                val rotation = Screen.rotation(this)
+                repo.bindPlanToApp(
+                    planId = plan.id,
+                    packageName = app.packageName,
+                    label = app.label,
+                    rotation = rotation,
+                    displayW = size.x,
+                    displayH = size.y,
+                )
+                repo.setActivePlan(plan.id)
+                toast("已绑定：${app.label}")
+                render()
+                if (thenEdit) {
+                    startEdit(plan.id)
+                } else {
+                    startOverlay(ACTION_START)
+                    toast("服务已启动；切到目标应用后悬浮球才会出现")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun confirmDelete(plan: Plan) {
@@ -508,7 +556,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, AutomationService::class.java).setAction(action)
         runCatching {
             ContextCompat.startForegroundService(this, intent)
-            toast("悬浮球已启动")
+            toast("服务已启动；悬浮球只在目标应用前台显示")
         }.onFailure {
             toast("启动失败：${it.message}")
         }

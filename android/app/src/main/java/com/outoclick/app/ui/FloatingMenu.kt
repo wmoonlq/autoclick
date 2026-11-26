@@ -2,27 +2,42 @@ package com.outoclick.app.ui
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.TextView
 import com.outoclick.app.Palette
 import com.outoclick.app.Screen
 import com.outoclick.app.dp
 import com.outoclick.app.roundedRect
 import com.outoclick.app.tv
 
+/**
+ * 悬浮球的操作边栏。
+ *
+ * 停止状态长按悬浮球打开：开始/暂停/停止、编辑点位、方案列表、退出。
+ * 编辑状态由同一个边栏切换成编辑操作：添加/复用/删除/保存/完成。
+ * 运行中不打开编辑边栏；长按悬浮球是停止。
+ */
 class FloatingMenu(
     private val context: Context,
     private val wm: WindowManager,
     private val callbacks: Callbacks,
 ) {
+    enum class Mode { NORMAL, EDIT }
+
     interface Callbacks {
-        fun onOpenPlans()
-        fun onEditPlan()
-        fun onToggleRun()
+        fun onPrimary()
         fun onStop()
-        fun onToggleToolbar()
+        fun onEdit()
+        fun onAddPoint()
+        fun onReusePoint()
+        fun onDeletePoint()
+        fun onSave()
+        fun onDoneEdit()
+        fun onOpenPlans()
         fun onExit()
     }
 
@@ -35,91 +50,92 @@ class FloatingMenu(
         anchorY: Int,
         ballWidth: Int,
         ballHeight: Int,
+        mode: Mode,
         status: String,
+        planName: String,
+        targetLabel: String,
+        active: Boolean,
         running: Boolean,
         paused: Boolean,
-        active: Boolean,
-        editing: Boolean,
-        toolbarVisible: Boolean,
+        hasSelection: Boolean,
     ) {
         dismiss()
         val screen = Screen.size(context)
-        val menuWidth = context.dp(210)
+        val menuWidth = context.dp(224)
 
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedRect(Palette.CARD, context.dp(16), Palette.BORDER, context.dp(1))
+            background = roundedRect(Palette.CARD, context.dp(18), Palette.BORDER, context.dp(1))
             setPadding(context.dp(12), context.dp(12), context.dp(12), context.dp(12))
         }
 
-        card.addView(context.tv(status, 11f, Palette.MUTED).apply {
-            setPadding(context.dp(4), 0, context.dp(4), context.dp(8))
+        val planTitle = if (planName.isBlank()) "未选择方案" else planName
+        card.addView(context.tv(planTitle, 15f, Palette.TEXT, true).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
         })
-
-        if (active) {
-            if (running) {
-                card.addView(menuRow("暂停运行") {
-                    dismiss()
-                    callbacks.onToggleRun()
-                })
-            } else if (paused) {
-                card.addView(menuRow("继续运行") {
-                    dismiss()
-                    callbacks.onToggleRun()
-                })
-            } else {
-                card.addView(menuRow("开始当前方案") {
-                    dismiss()
-                    callbacks.onToggleRun()
-                })
-            }
-            if (running || paused) {
-                card.addView(menuRow("停止运行", Palette.RED) {
-                    dismiss()
-                    callbacks.onStop()
-                })
-            }
-            card.addView(menuRow("编辑当前方案") {
-                dismiss()
-                callbacks.onEditPlan()
+        card.addView(context.tv(status, 10.5f, Palette.MUTED).apply {
+            setPadding(0, context.dp(3), 0, context.dp(1))
+        })
+        if (targetLabel.isNotBlank()) {
+            card.addView(context.tv(targetLabel, 10f, Palette.DIM).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                setPadding(0, 0, 0, context.dp(4))
             })
+        }
+
+        if (mode == Mode.EDIT) {
+            card.addView(row("＋ 添加点") { callbacks.onAddPoint() })
+            card.addView(row("复用点位") { callbacks.onReusePoint() })
+            card.addView(
+                row(
+                    "删除点",
+                    if (hasSelection) Palette.TEXT else Palette.DIM,
+                ) { callbacks.onDeletePoint() },
+            )
+            card.addView(row("保存方案") { callbacks.onSave() })
+            card.addView(row("开始运行", primary = true) { callbacks.onPrimary() })
+            card.addView(row("完成编辑") { callbacks.onDoneEdit() })
         } else {
-            card.addView(context.tv("未选择当前方案", 12f, Palette.DIM).apply {
-                setPadding(context.dp(4), 0, context.dp(4), context.dp(8))
-            })
+            if (active) {
+                when {
+                    running -> card.addView(row("暂停运行", primary = true) { callbacks.onPrimary() })
+                    paused -> card.addView(row("继续运行", primary = true) { callbacks.onPrimary() })
+                    else -> card.addView(row("开始当前方案", primary = true) { callbacks.onPrimary() })
+                }
+                if (running || paused) {
+                    card.addView(row("停止运行", Palette.RED) { callbacks.onStop() })
+                }
+                if (!running && !paused) {
+                    card.addView(row("编辑点位") { callbacks.onEdit() })
+                }
+            } else {
+                card.addView(context.tv("未选择当前方案", 11.5f, Palette.DIM).apply {
+                    setPadding(context.dp(4), context.dp(6), context.dp(4), context.dp(6))
+                })
+            }
+            card.addView(row("方案列表") { callbacks.onOpenPlans() })
         }
 
-        if (editing) {
-            card.addView(menuRow(if (toolbarVisible) "隐藏工具条" else "显示工具条") {
-                dismiss()
-                callbacks.onToggleToolbar()
-            })
-        }
-        card.addView(menuRow("方案列表") {
-            dismiss()
-            callbacks.onOpenPlans()
-        })
-        card.addView(menuRow("关闭菜单", Palette.DIM) { dismiss() })
-        card.addView(menuRow("退出悬浮球", Palette.RED) {
-            dismiss()
-            callbacks.onExit()
-        })
+        card.addView(row("关闭菜单", Palette.DIM) { dismiss() })
+        card.addView(row("退出悬浮球", Palette.RED) { callbacks.onExit() })
 
         val x = if (anchorX > screen.x / 2) {
             (anchorX - menuWidth - context.dp(8)).coerceAtLeast(0)
         } else {
             (anchorX + ballWidth + context.dp(8)).coerceAtMost((screen.x - menuWidth).coerceAtLeast(0))
         }
-        val y = (anchorY - context.dp(20)).coerceIn(0, (screen.y - context.dp(360)).coerceAtLeast(0))
+        val y = (anchorY - context.dp(16)).coerceIn(0, (screen.y - context.dp(620)).coerceAtLeast(0))
 
-        // 菜单做成可聚焦窗口：编辑画布也是悬浮窗，不可聚焦的菜单在部分版本上
-        // 会被全屏编辑层挡住点击。菜单关闭后目标应用会重新拿到焦点。
+        // 可聚焦便于按钮点击，但 NOT_TOUCH_MODAL 保证边栏外的触摸仍然落到画布/目标应用。
         val params = WindowManager.LayoutParams(
             menuWidth,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             Screen.overlayType(),
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -141,18 +157,29 @@ class FloatingMenu(
         runCatching { wm.removeView(view) }
     }
 
-    private fun menuRow(text: String, color: Int = Palette.TEXT, onClick: () -> Unit): LinearLayout =
-        LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(context.dp(4), 0, context.dp(4), 0)
-            addView(context.tv(text, 13.5f, color), LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f,
-            ))
-            minimumHeight = context.dp(40)
-            isClickable = true
-            setOnClickListener { onClick() }
-        }
+    private fun row(
+        text: String,
+        color: Int = Palette.TEXT,
+        primary: Boolean = false,
+        onClick: () -> Unit,
+    ): TextView = TextView(context).apply {
+        this.text = text
+        textSize = 13.5f
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(context.dp(12), 0, context.dp(12), 0)
+        setTextColor(if (primary) Palette.ON_PRIMARY else color)
+        background = roundedRect(
+            if (primary) Palette.PRIMARY else 0x00000000,
+            context.dp(10),
+            if (primary) Palette.PRIMARY else null,
+            0,
+        )
+        minimumHeight = context.dp(42)
+        isClickable = true
+        setOnClickListener { onClick() }
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = context.dp(2) }
+    }
 }

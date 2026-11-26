@@ -2,7 +2,7 @@
 
 - 更新：2026-11-27
 - 主交付物：**Android 独立 App**（`android/`）
-- 当前版本：**0.5.1（v1 重写，点击落点修复）**
+- 当前版本：**0.6.0（悬浮球交互重构）**
 - 需求基线：`产品功能示意图/数据实体建模.md`（v4）+ `产品功能示意图/测试用例-v1.md`
 - 仓库：https://github.com/wmoonlq/autoclick
 
@@ -17,7 +17,10 @@
 | 单点参数 | 点击次数 1–50、点击间隔 0–60000ms、点击时长 10–500ms、点位间隔 0–60000ms | 完成 |
 | 运行会话 | RunSession 状态机、快照、暂停/继续/停止、SQLite 落库 | 完成 |
 | 目标守卫 | 启动前前台包名/方向/尺寸校验；Home/切 App 暂停；系统页面硬停 | 完成 |
-| 急停 | 常驻悬浮球（运行中单击停止）、菜单、通知停止、看门狗、启动对账 | 完成 |
+| 悬浮球 | 只在绑定目标应用前台显示；停止单击开始/长按边栏；运行单击暂停/长按停止；暂停单击继续/长按停止 | 完成 |
+| 操作边栏 | 长按打开；编辑模式含添加/复用/删除/保存/开始/完成；无独立顶部工具条 | 完成 |
+| 通知 | 运行中暂停/停止；暂停时继续/停止 | 完成 |
+| 守卫细节 | 输入法窗口不触发隐藏/暂停；主页面/桌面不再残留全屏 overlay | 完成 |
 | 随机化 | ±5ms / ±3px 默认开启，无 UI 入口 | 完成 |
 | 迁移 | v0.4 JSON 的 TAP/LONG_PRESS 迁移；SWIPE/WAIT 跳过 | 完成 |
 | UI | Google / ChatGPT 深色风格；白色主按钮 + 绿色状态；新应用图标 | 完成 |
@@ -28,8 +31,10 @@
 - 安装启动、旧脚本迁移（2 个方案）
 - 创建方案（3/10）、绑定 Clock、添加点位、单点设置、保存
 - 1 步 1 轮 → `FINISHED / COMPLETE / ok_count=1`
-- Clock `+` 按钮实际点击 → 打开「Search for a city」（0.5.1 修复后）
-- 99 轮运行中单击悬浮球 → `STOPPED / USER / ok_count=2`
+- Clock `+` 按钮实际点击 → 打开「Search for a city」
+- 悬浮球只在 Clock 前台显示；主页面/桌面无 overlay
+- 99 轮：单击暂停 → `PAUSED / USER`；单击继续 → `RUNNING`；长按停止 → `STOPPED / USER`
+- Gboard 弹出时悬浮球保持可见；停止状态长按打开操作边栏
 - 运行中按 Home → `PAUSED / TARGET_MISMATCH`；返回后继续
 - 运行中 `am force-stop` → 重启后 `STOPPED / KILLED / PROCESS_KILLED`
 - `TimelineTest`、`JitterTest` 全部通过

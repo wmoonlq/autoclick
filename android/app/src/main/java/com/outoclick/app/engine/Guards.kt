@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
+import android.view.inputmethod.InputMethodManager
 import com.outoclick.app.ClickAccessibilityService
 import com.outoclick.app.Screen
 import com.outoclick.app.model.AppState
@@ -132,6 +133,24 @@ object Guards {
      */
     fun isHardBlockedPackage(packageName: String): Boolean =
         packageName.isBlank() || packageName in HARD_BLOCK_PACKAGES
+
+    /**
+     * 输入法窗口会以独立包名产生 windowStateChanged。它只是盖在目标 App 上，
+     * 不代表用户切走了；否则一弹键盘悬浮球就消失、会话也会误暂停。
+     */
+    fun isImePackage(context: Context, packageName: String): Boolean {
+        if (packageName.isBlank()) return false
+        val imm = context.getSystemService(InputMethodManager::class.java)
+        val enabled = imm?.enabledInputMethodList
+            ?.mapNotNull { it.packageName }
+            .orEmpty()
+        if (packageName in enabled) return true
+        val current = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.DEFAULT_INPUT_METHOD,
+        )
+        return current?.substringBefore('/') == packageName
+    }
 
     fun homePackage(context: Context): String {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)

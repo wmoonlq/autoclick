@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
 import com.outoclick.app.engine.ForegroundTracker
+import com.outoclick.app.engine.Guards
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -37,6 +38,7 @@ class ClickAccessibilityService : AccessibilityService() {
         // 它们获得焦点时也会产生 windowStateChanged。这里完全忽略本应用事件；
         // MainActivity 真正回到前台时由 Activity.onStart 主动上报。
         if (pkg == packageName) return
+        if (Guards.isImePackage(this, pkg)) return
 
         ForegroundTracker.onPackage(pkg)
     }
