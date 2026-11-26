@@ -4,7 +4,11 @@
 **不需要电脑、不需要 ADB、不需要 Root。**
 
 > 当前版本：**v0.6.0（悬浮球交互重构，debug APK）**，minSdk 24 / targetSdk 34。
-> **下载 APK**：[outoclick-0.6.0-debug.apk](releases/outoclick-0.6.0-debug.apk) · [SHA256](releases/outoclick-0.6.0-debug.apk.sha256)
+>
+> **直接下载（GitHub raw）**：https://raw.githubusercontent.com/wmoonlq/autoclick/main/releases/outoclick-0.6.0-debug.apk
+> **GitHub 文件页**：https://github.com/wmoonlq/autoclick/blob/main/releases/outoclick-0.6.0-debug.apk
+> **SHA256**：`3f5eb32ba20784d28a4e350c5a8e638b78a07196e29ae1082a24c61d15067f90`
+> 仓库内文件：[outoclick-0.6.0-debug.apk](releases/outoclick-0.6.0-debug.apk) · [SHA256 文件](releases/outoclick-0.6.0-debug.apk.sha256)
 > 已在 Pixel 5 模拟器 **Android 17 / API 37** 完成核心链路验证：目标应用绑定、按钮库/复用、方案编排、SQLite 落库、运行会话、暂停/继续/停止、操作边栏、force-stop 启动对账。
 > **0.6.0 交互**：悬浮球只在绑定的目标应用前台显示；主页面/桌面不显示，避免挡触摸。停止状态单击开始、长按打开操作边栏；运行中单击暂停、长按停止；暂停单击继续、长按停止。编辑统一收进长按边栏，不再有独立顶部工具条。
 > **0.5.1 修复**：运行前等待编辑层/菜单从 WindowManager 移除，避免第一下点击落到自己的 overlay 上；已用 Clock `+` 按钮实测打开搜索页。
@@ -41,6 +45,17 @@
 - **本机 SQLite**：`apps / buttons / plans / plan_steps / sessions / settings` 六张表；保留最近 50 条会话。
 - **旧数据迁移**：首次启动把 v0.4 的 `files/scripts/*.json` 里 TAP / LONG_PRESS 迁移成按钮+方案；SWIPE / WAIT 跳过。
 - **Google / ChatGPT 风格 UI**：中性灰黑、白色主按钮、少量绿色状态强调；应用图标同步换成准星 + 绿点。
+
+## 下载
+
+- **直接下载（GitHub raw，浏览器打开即下载）**  
+  https://raw.githubusercontent.com/wmoonlq/autoclick/main/releases/outoclick-0.6.0-debug.apk
+- **GitHub 文件页（可点 Download）**  
+  https://github.com/wmoonlq/autoclick/blob/main/releases/outoclick-0.6.0-debug.apk
+- **SHA256**  
+  `3f5eb32ba20784d28a4e350c5a8e638b78a07196e29ae1082a24c61d15067f90`
+
+> 如果 GitHub 直连打不开，可以直接在飞书群「opencode事务群」里下载同名 APK，或使用本机文件 `releases/outoclick-0.6.0-debug.apk`。
 
 ## 快速开始
 
