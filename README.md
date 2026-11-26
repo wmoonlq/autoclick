@@ -1,34 +1,32 @@
 # outoclick · 安卓自动点击器
 
-独立 Android App：在手机上预设固定坐标的点击序列，由无障碍服务回放。
+独立 Android App：把固定点位编排成方案，通过无障碍服务回放。
 **不需要电脑、不需要 ADB、不需要 Root。**
 
-> 当前版本：MVP `0.4.0`（debug APK），已在 Pixel 5 模拟器 **Android 17 / API 37** 实测：悬浮条、侧滑抽屉、方案保存/另存为/退出、回放落点、随机节奏、画布画滑动、分辨率缩放均通过。
+> 当前版本：**v0.5.0（v1 重写，debug APK）**，minSdk 24 / targetSdk 34。
+> 已在 Pixel 5 模拟器 **Android 17 / API 37** 完成核心链路验证：目标应用绑定、按钮库/复用、方案编排、SQLite 落库、运行会话、悬浮球急停、Home 暂停、force-stop 启动对账。
 >
-> **下载 APK**：[outoclick-0.4.0-debug.apk](https://github.com/wmoonlq/autoclick/releases/download/v0.4.0/outoclick-0.4.0-debug.apk) · [Release 说明](https://github.com/wmoonlq/autoclick/releases/tag/v0.4.0) · [迭代记录](CHANGELOG.md)
+> 需求基线：`产品功能示意图/数据实体建模.md`（v4）+ `产品功能示意图/测试用例-v1.md`。
+> 完整 v1 用例还需要配套「探针 App」逐条回归，当前完成的是核心闭环与主要 P0。
 
 ## 截图
 
-| 主界面 | 悬浮条 | 侧滑抽屉 | 回放落点 | 可视化编排 |
+| 方案面板 | 编辑工具条 | 单点设置 | 悬浮球菜单 | 应用图标 |
 |---|---|---|---|---|
-| ![主界面](docs/android-main.png) | ![悬浮条](docs/android-handle.png) | ![侧滑抽屉](docs/android-panel.png) | ![回放落点](docs/android-preview.png) | ![可视化编排](docs/android-editor.png) |
+| ![方案面板](docs/v1-main.png) | ![编辑工具条](docs/v1-editor.png) | ![单点设置](docs/v1-point.png) | ![悬浮球菜单](docs/v1-menu.png) | ![应用图标](docs/app-icon.png) |
 
 ## 能做什么
 
-- **iQOO 式游戏助手交互**：贴边半透明悬浮条，单击从侧边滑出工具抽屉，不挡画面、闲置自动淡出
-- **侧滑抽屉**：方案切换、开始/暂停/停止、可视化编排、准星取点、脚本列表、隐藏，一屏直达
-- **方案管理**：保存 / 另存为 / 退出当前方案；多套方案一键切换
-- **回放落点预览**：运行时黄色光点 + 编号叠加在画面上，当前步骤高亮，可一键显隐
-- **坐标归一化**：记录方案创建时的分辨率，换机 / 改分辨率按比例缩放
-- **随机节奏**：每步延时 ±120ms、坐标 ±6px（可关、可自定义），仅做通用抖动
-- **全屏可视化编排**：拖动圆点改坐标；「＋ 加点」点空白新增；「＋ 滑动」直接画起点→终点；支持撤销、改类型、删除
-- **悬浮准星取点**：拖动十字准星到按钮上，点「记录」生成坐标
-- **自由摆放 + 贴边**：悬浮条可拖到任意位置，靠近左右边缘自动吸附贴边，位置会记住
-- **隐藏与恢复**：隐藏悬浮条后服务继续运行，从通知栏一键恢复
-- **脚本编排**：点击 / 长按 / 滑动 / 等待；每步可设延时、启用状态；脚本可循环 N 次
-- **本机存储**：脚本是纯 JSON，支持复制、删除、剪贴板导入导出
-- **GPT 风格深色 UI**：中性灰黑、白色主按钮、细边框、大圆角、少而准的绿色点缀
-- **前台服务**：运行状态常驻通知，避免被系统随手回收
+- **目标应用绑定**：切到目标应用自动识别 + 一次确认，也可以手动选择；绑定的时候记录屏幕方向和分辨率。
+- **按钮库 + 方案编排**：点位是独立的按钮，方案只负责“先点谁、隔多久、是否启用”。支持「复用点位」，同一个按钮可以被多个步骤/方案引用，改位置会同步所有引用。
+- **完整时间参数**：点击次数 1–50、点击间隔 0–60000ms、点击时长 10–500ms、点位间隔 0–60000ms、循环 1–99 轮。
+- **运行会话**：每次运行有 `RunSession`、深拷贝快照、状态机和进度；运行历史落 SQLite。
+- **目标应用守卫**：启动前校验前台包名、方向、分辨率；运行中切到桌面/微信等会暂停；系统设置、安装器、权限控制器、SystemUI 出现会直接停止。
+- **常驻急停**：悬浮球不可隐藏；运行中单击立即停止；长按打开菜单；通知栏也有停止；无进度看门狗兜底。
+- **随机化**：固定 ±5ms / ±3px，引擎默认开启，不暴露 UI（按测试 M6）。
+- **本机 SQLite**：`apps / buttons / plans / plan_steps / sessions / settings` 六张表；保留最近 50 条会话。
+- **旧数据迁移**：首次启动把 v0.4 的 `files/scripts/*.json` 里 TAP / LONG_PRESS 迁移成按钮+方案；SWIPE / WAIT 跳过。
+- **Google / ChatGPT 风格 UI**：中性灰黑、白色主按钮、少量绿色状态强调；应用图标同步换成准星 + 绿点。
 
 ## 快速开始
 
@@ -37,8 +35,6 @@
 ```powershell
 adb install -r android\app\build\outputs\apk\debug\app-debug.apk
 ```
-
-或者把 APK 拷到手机上手动安装（需要允许「安装未知来源应用」）。
 
 ### 从源码构建
 
@@ -55,8 +51,6 @@ cd android
 E:\gradle\gradle-8.13\bin\gradle.bat assembleDebug
 ```
 
-`android/local.properties` 里的 `sdk.dir` 指向你的 SDK 目录（该文件已被 gitignore）。
-
 产物：
 
 ```
@@ -65,129 +59,177 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ## 使用流程
 
-1. 打开 App，在「准备」卡片里依次开启：
+1. 打开 App，在「准备」卡片里开启：
    - **无障碍服务**：设置 → 无障碍 → 已下载的应用 → outoclick 点击执行器
    - **悬浮窗**：允许显示在其他应用上层
-   - **通知**（Android 13+）：前台服务状态，也是隐藏悬浮条后的恢复入口
-2. 在「脚本」里新建，或直接用自带的示例脚本。
-3. 点「启动悬浮条」，App 退到后台，屏幕边缘出现一条细长的半透明悬浮条：
-   - 拖到任意位置；靠近左右边缘会自动贴边
-   - 闲置约 2.6 秒自动变淡，摸一下恢复
-4. **单击悬浮条**，从最近的屏幕侧边滑出抽屉（点空白处或 × 关闭）：
-   - 顶部是当前方案 + 方案标签，点一下切换脚本
-   - 白色大按钮：开始 / 继续 / 暂停；右侧红色「停止」
-   - 工具格：可视化编排、准星取点、脚本列表、隐藏悬浮条
-   - 选项：回放时显示落点 / 随机节奏
-   - 方案：保存 / 另存为 / 退出
-   - 开始 / 暂停后抽屉自动收起，不挡目标 App
-5. 可视化编排：
-   - 每个点位显示为带编号的圆点，**直接拖动**到目标位置，松手即保存
-   - 点「＋ 加点」进入加点模式，再点屏幕空白处新增一个点击点位；选中后可「变长按 / 删除」
-   - 点「＋ 滑动」，按住起点拖到终点松手，直接生成滑动步骤
-   - 「撤销」回退上一步，「完成」退出并恢复悬浮条
-6. 准星取点：拖准星到目标位置，底部工具条点「记录点击」；滑动先点「起点」再移到终点点「终点」。
-7. 回放落点：开启后运行时会在画面上显示黄色光点 + 编号，当前步骤白色高亮；停止后自动消失。
-8. 回到 App 可以微调坐标、时长、延时、循环次数和随机节奏（±ms / ±px）。
+   - **通知**（Android 13+）：前台服务状态，也是通知栏停止入口
+   - **电池优化**：建议加入白名单
+2. 点「＋ 创建方案」，会自动进入编辑工具条；切到目标应用。
+3. 第一次切到目标应用会弹「绑定目标应用」，点「绑定」；也可以从工具条「目标应用」手动选择。
+4. 工具条：
+   - **＋ 添加点**：在画布中央生成点位，再拖动到目标位置
+   - **复用点位**：引用按钮库里已有的按钮（共享坐标）
+   - **删除点**：删除当前选中点位；被其他方案引用时会提示并支持级联删除
+   - **保存**：填写方案名、循环轮次，显示预估总时长
+   - **隐藏**：隐藏工具条，悬浮球仍在
+   - **退出**：回到方案列表
+5. 点画布上的编号圆点打开「单点设置」：
+   - 点击次数、点击间隔、点击时长、点位间隔
+   - 右上角「删除」彻底删除按钮
+6. 保存后，切到目标应用，点悬浮球 → 「开始当前方案」。
+7. 运行中：
+   - **单击悬浮球 = 立即停止**
+   - 长按悬浮球打开菜单（暂停/继续/停止/编辑/方案列表/退出）
+   - 通知栏也有「停止」
+   - 按 Home 或切到其他 App → 自动暂停，不自动恢复；切回目标应用后从菜单继续
+8. 进程被杀后重新打开 App，旧的 `RUNNING/PAUSED` 会话会被标记为 `STOPPED(KILLED)`，不会残留「卡死会话」。
 
-## 脚本格式
+## 数据模型（SQLite）
 
-每台手机本地保存为 `files/scripts/<id>.json`，也可以从 App 导出到剪贴板：
+数据库：`/data/data/com.outoclick.app/databases/outoclick.db`
 
-```json
-{
-  "schemaVersion": 2,
-  "id": "a1b2c3d4e5",
-  "name": "每日签到",
-  "repeat": 1,
-  "baseWidth": 1080,
-  "baseHeight": 2340,
-  "jitterMs": 120,
-  "jitterPx": 6,
-  "steps": [
-    { "type": "TAP", "x": 540, "y": 1200, "durationMs": 60, "delayAfterMs": 800, "enabled": true },
-    { "type": "LONG_PRESS", "x": 300, "y": 900, "durationMs": 800, "delayAfterMs": 300, "enabled": true },
-    { "type": "SWIPE", "x": 540, "y": 1800, "x2": 540, "y2": 900, "durationMs": 300, "delayAfterMs": 300, "enabled": true },
-    { "type": "WAIT", "durationMs": 1500, "delayAfterMs": 0, "enabled": true }
-  ]
-}
+| 表 | 作用 |
+|---|---|
+| `apps` | 目标应用：`package_name / app_label / bound_rotation / bound_display_w/h` |
+| `buttons` | 按钮库：归一化 `anchor_x/y` + 热区 `width/height` + 点击次数/间隔/时长 |
+| `plans` | 方案：目标应用、名称、状态、循环轮次、随机化参数、版本 |
+| `plan_steps` | 编排：`plan_id / button_id / seq / enabled / point_gap_ms` |
+| `sessions` | 运行会话：状态、暂停/停止原因、进度、快照 JSON、错误码、耗时 |
+| `settings` | 当前方案、数据结构版本 |
+
+## 时间轴语义
+
+```
+单步动作时长 = click_count × press_ms + (click_count − 1) × click_gap_ms
+单轮时长     = Σ(enabled 步骤动作时长 + point_gap_ms)
+预估总时长   = loop_count × 单轮时长 − 最后一个 point_gap_ms
 ```
 
-- `x / y / x2 / y2` 是**方案基准分辨率**下的物理像素；回放时按 `当前屏幕 / base` 缩放。
-- `jitterMs` / `jitterPx` 为 0 表示关闭随机节奏；否则每步延时和坐标在该范围内随机抖动。
-- 旧版（schemaVersion 1）没有 base 字段，首次保存时会以当前屏幕补上。
+- `click_gap_ms`：上一次抬起 → 下一次按下，不是“按下→按下”的周期。
+- `point_gap_ms`：本步最后一次抬起 → 下一步第一次按下；**跨轮同样生效**。
+- 最后一轮的最后一步不执行 `point_gap`。
+- 例：3 个点、各 1 次、时长 75ms、点位间隔 1000ms、10 轮 = `10 × 3 × (75+1000) − 1000 = 31250ms ≈ 31.3s`。
 
 ## 权限与安全
 
 | 权限 | 用途 | 是否读取内容 |
 |---|---|---|
-| 无障碍服务 | 通过 `dispatchGesture` 注入点击/滑动 | 否，`canRetrieveWindowContent=false` |
-| 悬浮窗 | 悬浮球 + 准星取点 | 否 |
-| 通知 | 前台服务状态 | 否 |
+| 无障碍服务 | `dispatchGesture` 注入点击；读取前台应用包名做守卫 | 否，`canRetrieveWindowContent=false` |
+| 悬浮窗 | 悬浮球、工具条、编辑画布、设置弹窗 | 否 |
+| 通知 | 前台服务状态与停止入口 | 否 |
+| `QUERY_ALL_PACKAGES` | 把包名解析成应用名/图标（侧载场景） | 否 |
+| 电池优化白名单 | 降低服务被厂商杀掉概率 | 否 |
 
-- 所有脚本与运行状态只存在本机，App 不联网。
-- 无障碍服务只做手势注入，不读取屏幕内容，不上传任何数据。
-- 停止是「不再派发下一步」，已经在执行的一次手势（通常 60–800ms）会自然结束，不会补点。
+- 所有方案和会话只存在本机 SQLite；App 不联网，Manifest 没有 `INTERNET` 权限。
+- 无障碍服务只做手势注入和包名读取，不抓屏幕内容、不上传数据。
+- 停止是「不再派发下一次点击」；已经在下发的一次手势（通常 75ms）会自然结束，不补点。
+- 随机化只是通用参数抖动，不保证规避平台检测；游戏/平台封号风险由使用者承担。
 
-## 原理
+## 原理 / 架构
 
 ```
-MainActivity        脚本列表 / 步骤编辑 / 权限引导
-OverlayService      悬浮条、侧滑抽屉、准星、前台通知
-SidePanel           侧滑抽屉 / 方案切换 / 工具格 / 开始停止
-HandleView          贴边悬浮条（状态点 + grip）
-VisualEditor        全屏可视化编排（拖点 / 加点模式 / 撤销）
-ClickAccessibilityService   dispatchGesture(TAP / LONG_PRESS / SWIPE)
-Runner              协程顺序执行，循环、延时、暂停/停止
-ScriptStore         filesDir/scripts/*.json
+MainActivity                方案列表 / 配额 / 当前方案 / 权限引导
+AutomationService           前台服务；悬浮球、菜单、编辑层、通知、急停
+  ├ FloatingBallView        常驻悬浮球（状态点 / 拖动 / 单击停止 / 长按菜单）
+  ├ FloatingMenu            运行控制 / 编辑 / 方案列表 / 退出
+  └ EditorOverlay           工具条 + 全屏透明画布
+      ├ EditorCanvas        编号点位、拖动改坐标、长按 1s 排序
+      ├ PointSettingsPanel  点击次数 / 间隔 / 时长 / 点位间隔
+      └ SavePlanPanel       名称 / 循环轮次 / 预估时长
+ClickAccessibilityService   dispatchGesture + 前台包名事件
+SessionManager              会话状态机、时间轴执行、暂停/停止、看门狗
+Guards                      前台包名 / 方向 / 尺寸 / 权限 / 系统页面
+AppRepository               SQLite 读写、旧数据迁移、启动对账
 ```
 
-- 点击：`GestureDescription.StrokeDescription(path, 0, 60ms)`
-- 长按：同点，时长 800ms
-- 滑动：`moveTo → lineTo`，默认 300ms
-- 等待：`delay(ms)`，可被暂停/停止打断
-- 运行循环：`delayAfterMs` 在每步之后执行
+当前任务链：
+
+```
+悬浮球菜单「开始」
+  → Guards 校验（权限 / 目标应用在前台 / 方向 / 尺寸 / 方案非空）
+  → RunSession 快照落库
+  → SessionManager 按 click_count / click_gap / point_gap 执行
+  → ClickAccessibilityService.dispatchGesture
+  → 每次点击更新 last_progress_at，看门狗监控
+  → 完成 / 停止 / 异常 → 会话终态落库
+```
+
+更完整的架构说明见 [`docs/ANDROID-V1.md`](docs/ANDROID-V1.md)。
+
+## 已实现 / 未实现（v1）
+
+已实现：
+
+- 目标应用绑定（自动识别 + 手动选择）、方向/分辨率记录
+- 按钮库、点位复用、共享坐标
+- 方案创建/编辑/删除、10 个配额、保存/版本
+- 单点参数、循环轮次、预估时长
+- RunSession 状态机、快照、SQLite、最近 50 条会话
+- 启动守卫、Home/切 App 暂停、系统页面硬停
+- 常驻悬浮球、单击停止、通知停止、看门狗、启动对账
+- 旧版脚本迁移
+- 单元测试：Timeline / Jitter
+
+未实现（v1 明确砍掉）：
+
+- 方案广场、导入/导出、分享
+- 录方案、滑动点、撤销
+- 防检测配置面板（引擎保留固定默认值）
+- 跨设备/云手机管理、定时任务
+- 图像识别、控件/节点定位、OCR
+- 配套探针 App 与完整 v1 测试用例回归
 
 ## 已知限制
 
-- **固定坐标**：目标 App 改版后需要重新取点；分辨率变化已支持按比例缩放。
-- **仅竖屏**：暂不处理旋转后的坐标换算。
-- **无图像识别**：不会「找按钮」，只按坐标点。
-- **不支持真实录制**：Android 不允许 App 静默读取其他 App 的触控；用可视化加点或 PC + ADB 录制替代。
-- **不支持自动跳过弹窗**：游戏引擎画面无法通过无障碍树识别「确认/关闭」；普通 App 的节点识别留待后续。
-- **无连接超时重连**：本地无障碍服务没有远端连接，不需要倒计时重试。
-- **随机节奏不是防检测**：只是通用延时/坐标抖动，不保证规避平台检测；在线游戏有封号风险。
-- **息屏/锁屏**：无障碍手势在锁屏状态下无法操作目标 App。
+- **固定坐标**：目标 App 改版后需要重新取点。
+- **仅支持点击**：v1 不提供滑动点；`SWIPE` 旧步骤迁移时会被跳过。
+- **目标应用必须在前台**：启动前校验，运行中切换会暂停；锁屏/息屏也会暂停。
+- **方向/分辨率严格匹配**：绑定后旋转或改分辨率会拒绝启动，需要恢复或重新绑定。
+- **分身/多开**：只按包名识别，不区分 `userId`。
+- **厂商保活**：MIUI / HyperOS / ColorOS 等可能杀后台，建议加入电池白名单。
 - **系统安全界面**：部分系统弹窗、安全键盘、支付类页面可能拒绝注入。
-- **厂商保活**：MIUI / HyperOS / ColorOS 等可能杀后台，建议把 App 加入电池白名单。
-- **反作弊风险**：游戏/平台可能检测自动化操作，账号风险由使用者承担。
+- **debug 签名**：正式分发需要自建 keystore。
+- **完整回归未跑**：当前是核心链路验证，不是 v1 全量用例全绿。
 
 ## 项目结构
 
 ```
-android/                    独立 Android 工程（主交付物）
+android/                       独立 Android 工程（主交付物）
   app/src/main/java/com/outoclick/app/
-    MainActivity.kt         脚本列表 / 步骤编辑 / 权限引导
-    OverlayService.kt       悬浮条、侧滑抽屉、准星、通知、编排入口
-    SidePanel.kt            iQOO 式侧滑抽屉（方案 / 运行 / 工具格 / 选项）
-    HandleView.kt           贴边悬浮条（状态点 + grip 绘制）
-    PointPreview.kt         回放落点黄色光点 + 编号
-    ToggleChip.kt           GPT 风格开/关胶囊
-    VisualEditor.kt         全屏可视化编排（拖点 / 加点 / 画滑动 / 撤销）
-    ClickAccessibilityService.kt  手势注入
-    Runner.kt               顺序执行 / 循环 / 暂停停止
-    Model.kt / Store.kt     脚本模型与本机 JSON 存储
-app/                        早期的 Windows + ADB 原型（Python，非主交付物）
-docs/PC-PROTOTYPE.md        PC 原型说明
-docs/FEASIBILITY-REVIEW.md  规格可行性评审
-SPEC.md                     PC 原型规格（v0.4），安卓版的约束可参考
+    MainActivity.kt            方案面板 / 权限 / 配额 / 当前方案
+    AutomationService.kt       前台服务 / 悬浮球 / 菜单 / 编辑层 / 通知
+    ClickAccessibilityService.kt  手势注入 + 前台包名
+    OutoclickApp.kt            Application + AppGraph
+    Screen.kt                 屏幕尺寸 / 方向 / 悬浮窗类型
+    Ui.kt                     ChatGPT 风格基础控件
+    model/Models.kt           数据模型
+    data/AppRepository.kt     SQLite 仓库 + 迁移 + 对账
+    data/DatabaseHelper.kt    六张表 / CRUD / 会话
+    engine/Timeline.kt        时间轴与预估
+    engine/Jitter.kt          ±5ms / ±3px 随机化
+    engine/Guards.kt          启动/运行守卫
+    engine/ForegroundTracker.kt  前台包名
+    engine/TargetAppResolver.kt  包名 -> 应用名/图标
+    engine/RunSnapshot.kt     运行快照
+    engine/SessionManager.kt  状态机 / 执行 / 看门狗
+    ui/                       悬浮球 / 菜单 / 画布 / 设置 / 保存面板
+  app/src/test/java/...       Timeline / Jitter 单测
+产品功能示意图/                需求基线（v4 实体建模 + v1 测试用例 + 参考截图）
+docs/ANDROID-V1.md             本轮 Android 技术设计与验证记录
+docs/PC-PROTOTYPE.md           早期 PC 原型说明
+SPEC.md                        早期 PC 原型规格（非 Android 版基线）
+app/                           早期 Windows + ADB 原型（Python，归档）
 ```
 
 ## 开发
 
 ```powershell
-# 只编译，不安装
+# 只编译
 cd android
 E:\gradle\gradle-8.13\bin\gradle.bat assembleDebug
+
+# 单元测试
+E:\gradle\gradle-8.13\bin\gradle.bat :app:testDebugUnitTest
 
 # 安装并看日志
 adb install -r app\build\outputs\apk\debug\app-debug.apk
@@ -196,28 +238,20 @@ adb logcat -s outoclick AndroidRuntime
 
 调试无障碍服务时，改完代码重新安装后需要在系统设置里**关闭再打开**一次无障碍服务，服务才会绑定新版本。
 
-## 故障排查
+## 验证记录（Pixel 5 · Android 17 / API 37）
 
-| 现象 | 处理 |
-|---|---|
-| 悬浮条不出现 | 确认「显示在其他应用上层」已允许；在 App 里重新点「启动悬浮条」；若曾点过「隐藏」，从通知栏点「显示悬浮条」 |
-| 悬浮条太淡看不清 | 闲置约 2.6 秒会淡到 40%，摸一下恢复；这是刻意做的防遮挡 |
-| 点了悬浮条没反应 | 悬浮条很窄（26dp），点在胶囊范围内；开抽屉后点屏幕空白或 × 关闭 |
-| 编排里看不到点 | 等待步骤（WAIT）没有坐标，不会显示在画布上，回脚本页编辑 |
-| 编排时点空白没加点 | 新版需要先点「＋ 加点」进入加点模式，再点空白，防止误触 |
-| 点「开始」没反应 | 无障碍服务未开启，或服务被系统杀掉；重新进设置开关一次 |
-| 点击位置偏移 | 坐标是屏幕物理像素；用准星重新取点，注意状态栏/手势导航区域 |
-| 运行一会儿就停 | 厂商省电策略杀掉服务；加入电池白名单，保持前台通知 |
-| 抽屉挡住目标 | 点抽屉外空白关闭；或把悬浮条拖到另一侧再打开 |
-| 安装失败 | 确认允许未知来源；或 `adb install -r` 覆盖安装 |
-| 无障碍开关是灰的 / 提示受限 | Android 13+ 侧载应用需在「应用信息 → outoclick → 允许受限设置」后再开启无障碍 |
+- 安装启动、SQLite 旧脚本迁移（2 个旧方案）
+- 创建方案（3/10）、绑定 Clock、添加点位、单点设置、保存
+- 运行 1 步 1 轮 → `FINISHED / COMPLETE / ok_count=1`
+- 改成 99 轮运行 → 悬浮球单击 → `STOPPED / USER / ok_count=2`
+- 运行中按 Home → `PAUSED / TARGET_MISMATCH`；返回 Clock 后可继续
+- 运行中 `am force-stop` → 重启后 `STOPPED / KILLED / PROCESS_KILLED`
+- 单元测试：`TimelineTest`、`JitterTest` 全部通过
 
 ## 下一步
 
-- 无障碍节点识别（仅普通 App：自动关闭确认框，游戏内不可用）
-- 方案文件导入导出（SAF，不再只走剪贴板）
-- 脚本分组循环 / 条件步骤
-- PC + ADB 录制模式（真录触摸轨迹）
-- 横屏与旋转坐标换算
-- 运行日志与失败截图（需要 MediaProjection）
-- 计划任务（每天定时执行）
+1. 做配套「探针 App」（记录 `MotionEvent` + 导出 CSV），跑完 `测试用例-v1.md` 的全量用例。
+2. 补测旋转、息屏/锁屏、通知被划掉、看门狗、系统设置硬停。
+3. 在 Android 7.1 / 10 / 13 / 14 真机或云手机上回归。
+4. release keystore、隐私说明、分发流程。
+5. v1.5：导入/导出、滑动点、录方案、按钮库页面、方案广场。

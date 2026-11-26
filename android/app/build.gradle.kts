@@ -9,10 +9,10 @@ android {
 
     defaultConfig {
         applicationId = "com.outoclick.app"
-        minSdk = 26
-        targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 5
+        versionName = "0.5.0"
     }
 
     buildTypes {
@@ -39,4 +39,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

@@ -1,17 +1,19 @@
 package com.outoclick.app
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.AppCompatButton
 
 object Palette {
+    // ChatGPT 深色：中性灰黑 + 白色主按钮 + 少量绿色状态强调。
     const val BG = 0xFF0D0D0D.toInt()
     const val CARD = 0xFF171717.toInt()
     const val CARD_2 = 0xFF212121.toInt()
@@ -77,11 +79,41 @@ fun Context.card(radiusDp: Int = 16, bg: Int = Palette.CARD): LinearLayout =
     }
 
 fun Context.divider(): View = View(this).apply {
-    setBackgroundColor(0xFF1E2733.toInt())
+    setBackgroundColor(Palette.BORDER)
     layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
         topMargin = dp(10)
         bottomMargin = dp(10)
     }
+}
+
+fun Context.input(
+    value: String = "",
+    hint: String = "",
+    numeric: Boolean = false,
+): EditText = EditText(this).apply {
+    setText(value)
+    this.hint = hint
+    textSize = 14f
+    setTextColor(Palette.TEXT)
+    setHintTextColor(Palette.DIM)
+    background = roundedRect(Palette.CARD_2, dp(10), Palette.BORDER, dp(1))
+    setPadding(dp(12), dp(8), dp(12), dp(8))
+    inputType = if (numeric) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT
+    if (numeric) setSelectAllOnFocus(true)
+    minHeight = dp(44)
+}
+
+fun Context.pill(
+    text: CharSequence,
+    bg: Int = Palette.CARD_2,
+    fg: Int = Palette.TEXT,
+): TextView = TextView(this).apply {
+    this.text = text
+    textSize = 11f
+    setTextColor(fg)
+    gravity = Gravity.CENTER
+    setPadding(dp(10), dp(4), dp(10), dp(4))
+    background = roundedRect(bg, dp(20), Palette.BORDER, dp(1))
 }
 
 fun Context.toast(message: String) {

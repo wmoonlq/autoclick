@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.view.accessibility.AccessibilityEvent
+import com.outoclick.app.engine.ForegroundTracker
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -13,16 +14,32 @@ class ClickAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        ForegroundTracker.reset()
     }
 
     override fun onDestroy() {
         if (instance === this) instance = null
+        ForegroundTracker.reset()
         super.onDestroy()
     }
 
     override fun onInterrupt() = Unit
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
+    /**
+     * 只用来追踪前台包名，不读取窗口内容（canRetrieveWindowContent=false）。
+     * 包名用于目标应用守卫：启动前校验、运行中切换暂停、系统页面硬阻止。
+     */
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val pkg = event.packageName?.toString() ?: return
+
+        // 悬浮球、编辑画布、菜单、设置弹窗都是我们自己的 overlay 窗口，
+        // 它们获得焦点时也会产生 windowStateChanged。这里完全忽略本应用事件；
+        // MainActivity 真正回到前台时由 Activity.onStart 主动上报。
+        if (pkg == packageName) return
+
+        ForegroundTracker.onPackage(pkg)
+    }
 
     suspend fun tap(x: Int, y: Int, durationMs: Int): Boolean {
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }

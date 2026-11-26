@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">outoclick</string>
     <string name="accessibility_label">outoclick 点击执行器</string>
-    <string name="accessibility_description">按预设坐标执行点击、长按和滑动。不读取屏幕内容，不上传任何数据。</string>
+    <string name="accessibility_description">按预设点位执行点击，并读取前台应用包名用于目标应用守卫。不读取屏幕内容，不上传任何数据。</string>
     <string name="notification_channel">悬浮控制</string>
 </resources>

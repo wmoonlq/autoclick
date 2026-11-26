@@ -6,8 +6,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 侧载场景：用于把无障碍事件里的包名解析成应用名/图标 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <application
+        android:name=".OutoclickApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -26,12 +29,12 @@
         </activity>
 
         <service
-            android:name=".OverlayService"
+            android:name=".AutomationService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="floating control panel for coordinate-based accessibility automation" />
+                android:value="coordinate-based accessibility automation with a persistent stop control" />
         </service>
 
         <service
