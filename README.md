@@ -257,6 +257,29 @@ SPEC.md                        早期 PC 原型规格（非 Android 版基线）
 app/                           早期 Windows + ADB 原型（Python，归档）
 ```
 
+## 测试（TDD）
+
+- **测试策略 / 测试计划**：[`docs/TEST-STRATEGY.md`](docs/TEST-STRATEGY.md)
+- **探针 App**：`android/probe`，全屏 3×3 格子，记录每次 `DOWN/UP` 的坐标、时间、时长到 CSV；用于证明点击真的落到目标 App，而不是只看 `ok_count`。
+- **方向策略单测**：`OrientationPolicyTest`（竖屏/横屏、宽高比容差、180° 倒置、未校准）。
+- **JVM 单测**：
+
+```powershell
+cd android
+E:\gradle\gradle-8.13\bin\gradle.bat :app:testDebugUnitTest --offline
+```
+
+- **构建探针**：
+
+```powershell
+E:\gradle\gradle-8.13\bin\gradle.bat :probe:assembleDebug --offline
+adb install -r probe\build\outputs\apk\debug\probe-debug.apk
+adb shell am start -n com.outoclick.probe/.ProbeActivity
+adb pull /sdcard/Android/data/com.outoclick.probe/files/events.csv
+```
+
+> 真机到位后按 `TEST-STRATEGY.md` 的 P0 顺序执行：CLICK-01/05/06 → ORI-10/11/12 → BALL-01/04/06 → GUARD-01/LIFE-01。
+
 ## 开发
 
 ```powershell
