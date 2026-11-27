@@ -104,12 +104,9 @@ class MainActivity : AppCompatActivity() {
         content.removeAllViews()
 
         content.addView(header())
-        content.addView(statusCard())
-        content.addView(riskCard())
-        content.addView(guideCard())
-        content.addView(permissionCard())
-        content.addView(plansCard())
-        content.addView(overlayCard())
+        content.addView(statusSection())
+        content.addView(plansSection())
+        content.addView(permissionLine())
         content.addView(footer())
 
         scroll.post { scroll.scrollTo(0, scrollY) }
@@ -117,173 +114,157 @@ class MainActivity : AppCompatActivity() {
 
     private fun header(): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        addView(tv("outoclick", 28f, Palette.TEXT, true))
-        addView(tv("点击器功能实验室 · v${versionName()}", 12f, Palette.MUTED).apply {
-            setPadding(0, dp(4), 0, 0)
-        })
-        addView(tv("固定点位编排 · 目标应用守卫 · 常驻急停", 12f, Palette.DIM).apply {
-            setPadding(0, dp(8), 0, 0)
-        })
-    }
-
-    private fun statusCard(): View {
-        val card = card()
-        val active = sessions.currentSession()
-        val status = sessions.statusText()
-        val progress = sessions.progressText()
-        val title = tv(
-            if (active != null && !active.status.isTerminal) "运行会话" else "当前状态",
-            12f,
-            Palette.MUTED,
+        val row = LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(
+            tv("outoclick", 26f, Palette.TEXT, true),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
         )
-        card.addView(title)
-        card.addView(tv(status, 17f, Palette.TEXT, true).apply {
-            setPadding(0, dp(6), 0, 0)
+        row.addView(tv("⋯", 22f, Palette.MUTED).apply {
+            setPadding(dp(14), dp(2), dp(4), dp(8))
+            setOnClickListener { moreMenu() }
         })
-        if (active != null) {
-            card.addView(tv(progress, 11.5f, Palette.MUTED).apply {
-                setPadding(0, dp(4), 0, 0)
-            })
-        }
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(12), 0, 0)
-        }
-        if (sessions.isRunning()) {
-            row.addView(btn("暂停", Palette.CARD_2, Palette.TEXT) { sessions.pause() }, weight(1f))
-            row.addView(btn("停止", Palette.RED, Palette.TEXT) {
-                sessions.stop()
-            }, weight(1f))
-        } else if (sessions.isPaused()) {
-            row.addView(btn("继续", Palette.PRIMARY, Palette.ON_PRIMARY) {
-                if (!sessions.resume()) toast("请先切回目标应用并恢复方向")
-            }, weight(1f))
-            row.addView(btn("停止", Palette.RED, Palette.TEXT) {
-                sessions.stop()
-            }, weight(1f))
-        } else {
-            val activePlan = repo.read().activePlan()
-            row.addView(btn("启动服务", Palette.PRIMARY, Palette.ON_PRIMARY) {
-                startOverlay(ACTION_START)
-            }, weight(1f))
-            if (activePlan != null) {
-                row.addView(btn("编辑当前方案", Palette.CARD_2, Palette.TEXT) {
-                    startEdit(activePlan.id)
-                }, weight(1f))
-            }
-        }
-        card.addView(row)
-        return wrap(card)
+        addView(row)
+        addView(tv("点击器功能实验室 · v${versionName()}", 11f, Palette.MUTED).apply {
+            setPadding(0, dp(2), 0, 0)
+        })
     }
 
-    private fun riskCard(): View {
-        val card = card()
-        val row = LinearLayout(this).apply {
+    private fun statusSection(): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedRect(Palette.CARD, dp(22))
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+        }
+        val session = sessions.currentSession()
+        val activeSession = session != null && !session.status.isTerminal
+        val plan = repo.read().activePlan()
+        val dotColor = when {
+            sessions.isRunning() -> Palette.PRIMARY
+            sessions.isPaused() -> Palette.AMBER
+            else -> Palette.DIM
+        }
+        val title = when {
+            activeSession -> sessions.statusText()
+            plan != null -> "就绪"
+            else -> "开始使用"
+        }
+        val subtitle = when {
+            activeSession -> sessions.progressText()
+            plan != null -> {
+                val app = repo.read().app(plan.targetAppId)
+                val target = app?.label ?: "未绑定目标应用"
+                "${plan.name} · $target"
+            }
+            else -> "创建方案，绑定目标应用，切到目标应用后点悬浮球"
+        }
+
+        val titleRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        row.addView(tv("⚠ 部分游戏存在封号风险", 12.5f, Palette.AMBER).apply {
-            setPadding(0, 0, 0, 0)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(tv("更多 ›", 12f, Palette.MUTED).apply {
-            setPadding(dp(10), dp(4), 0, dp(4))
-            setOnClickListener { showRiskDialog() }
+        titleRow.addView(tv("●", 10f, dotColor).apply { setPadding(0, 0, dp(8), 0) })
+        titleRow.addView(
+            tv(title, 17f, Palette.TEXT, true),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        box.addView(titleRow)
+        box.addView(tv(subtitle, 11.5f, Palette.MUTED).apply {
+            setPadding(dp(18), dp(4), 0, 0)
+            maxLines = 2
         })
-        card.addView(row)
-        return wrap(card)
-    }
 
-    private fun guideCard(): View {
-        val card = card()
-        card.addView(tv("点击器新手指南", 15f, Palette.TEXT, true))
-        card.addView(tv("三步开始：权限 → 建方案 → 悬浮球运行", 11.5f, Palette.MUTED).apply {
-            setPadding(0, dp(4), 0, dp(8))
-        })
-        card.addView(btn("查看详情", Palette.CARD_2, Palette.TEXT) { showGuideDialog() })
-        return wrap(card)
-    }
-
-    private fun permissionCard(): View {
-        val card = card()
-        card.addView(tv("准备", 13f, Palette.MUTED, true))
-        card.addView(permissionRow(
-            title = "无障碍服务",
-            desc = "手势注入，不读取屏幕内容",
-            granted = accessibilityEnabled(),
-            action = "去开启",
-        ) {
-            runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-            toast("Android 13+ 侧载应用需先在应用信息里允许受限设置")
-        })
-        card.addView(permissionRow(
-            title = "悬浮窗",
-            desc = "悬浮球、工具条、编辑画布",
-            granted = Settings.canDrawOverlays(this),
-            action = "去授权",
-        ) {
-            runCatching {
-                startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName"),
-                    )
-                )
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(14), 0, 0)
+        }
+        when {
+            sessions.isRunning() -> {
+                actions.addView(bigBtn("暂停", Palette.PRIMARY_SOFT, Palette.PRIMARY) {
+                    sessions.pause()
+                }, bigWeight(1f))
+                actions.addView(bigBtn("停止", Palette.CARD_2, Palette.RED) {
+                    sessions.stop()
+                }, bigWeight(0.7f))
             }
-        })
-        card.addView(permissionRow(
-            title = "通知",
-            desc = "前台服务状态；被拒绝时用悬浮球停止",
-            granted = NotificationManagerCompat.from(this).areNotificationsEnabled(),
-            action = "去授权",
-        ) {
-            if (Build.VERSION.SDK_INT >= 33) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
-            } else {
-                openNotificationSettings()
+
+            sessions.isPaused() -> {
+                actions.addView(bigBtn("继续", Palette.PRIMARY_SOFT, Palette.PRIMARY) {
+                    if (!sessions.resume()) toast("请先切回目标应用并恢复方向")
+                }, bigWeight(1f))
+                actions.addView(bigBtn("停止", Palette.CARD_2, Palette.RED) {
+                    sessions.stop()
+                }, bigWeight(0.7f))
             }
-        })
-        card.addView(permissionRow(
-            title = "电池优化",
-            desc = "建议加入白名单，降低服务被杀概率",
-            granted = batteryIgnored(),
-            action = "去设置",
-        ) {
-            requestBatteryWhitelist()
-        })
-        return wrap(card)
+
+            plan == null -> {
+                actions.addView(bigBtn("创建方案", Palette.PRIMARY_SOFT, Palette.PRIMARY) {
+                    createPlan()
+                }, bigWeight(1f))
+            }
+
+            plan.targetAppId == null -> {
+                actions.addView(bigBtn("绑定目标应用", Palette.PRIMARY_SOFT, Palette.PRIMARY) {
+                    showBindPicker(plan, thenEdit = false)
+                }, bigWeight(1f))
+            }
+
+            else -> {
+                actions.addView(bigBtn("启动服务", Palette.PRIMARY_SOFT, Palette.PRIMARY) {
+                    prepareRun(plan.id)
+                }, bigWeight(1f))
+                actions.addView(bigBtn("编辑", Palette.CARD_2, Palette.TEXT) {
+                    startEdit(plan.id)
+                }, bigWeight(0.7f))
+            }
+        }
+        box.addView(actions)
+        return wrap(box)
     }
 
-    private fun plansCard(): View {
-        val card = card()
-        val state = repo.read()
-        val plans = state.plans.filter { !it.deleted }.sortedByDescending { it.updatedAt }
+    private fun plansSection(): View {
+        val plans = repo.read().plans.filter { !it.deleted }.sortedByDescending { it.updatedAt }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(2))
         }
-        header.addView(tv("我的方案（${plans.size}/10）", 15f, Palette.TEXT, true), LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1f,
-        ))
-        header.addView(btn("＋ 创建方案", Palette.PRIMARY, Palette.ON_PRIMARY) {
-            createPlan()
+        header.addView(
+            tv("我的方案", 13f, Palette.MUTED),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        header.addView(tv("${plans.size}/10", 11f, Palette.DIM).apply {
+            setPadding(0, 0, dp(12), 0)
         })
-        card.addView(header)
+        header.addView(tv("＋", 22f, Palette.PRIMARY).apply {
+            setPadding(dp(8), 0, dp(4), dp(4))
+            setOnClickListener { createPlan() }
+        })
+        box.addView(header)
 
         if (plans.isEmpty()) {
-            card.addView(tv("还没有方案。创建一个，然后在目标应用上绑定并添加点位。", 12f, Palette.MUTED).apply {
+            box.addView(tv("还没有方案，点右上角＋创建", 12f, Palette.MUTED).apply {
                 setPadding(0, dp(12), 0, 0)
             })
-            return wrap(card)
+            return wrap(box)
         }
-
-        plans.forEach { plan ->
-            card.addView(planRow(plan))
+        plans.forEachIndexed { index, plan ->
+            box.addView(planRow(plan))
+            if (index < plans.lastIndex) {
+                box.addView(View(this).apply {
+                    setBackgroundColor(Palette.BORDER)
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(1),
+                    )
+                })
+            }
         }
-        return wrap(card)
+        return wrap(box)
     }
 
     private fun planRow(plan: Plan): View {
@@ -291,122 +272,175 @@ class MainActivity : AppCompatActivity() {
         val app = state.app(plan.targetAppId)
         val active = state.settings.activePlanId == plan.id
         val session = sessions.currentSession()?.takeIf { it.planId == plan.id }
-
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(14), 0, dp(2))
-        }
-
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        top.addView(tv(plan.name, 16f, Palette.TEXT, true), LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            1f,
-        ))
-        top.addView(statusPill(plan))
-        box.addView(top)
-
-        val target = app?.let { "${it.label} · ${it.packageName}" } ?: "未绑定目标应用"
-        box.addView(tv(target, 11f, if (app == null) Palette.AMBER else Palette.MUTED).apply {
-            setPadding(0, dp(4), 0, 0)
-        })
-        box.addView(tv(
-            "${plan.steps.size} 个点位 · 循环 ${plan.loopCount} 轮 · v${plan.version}",
-            11f,
-            Palette.DIM,
-        ).apply {
-            setPadding(0, dp(3), 0, 0)
-        })
-
-        if (session != null && session.status.isActive) {
-            box.addView(tv(
-                "${sessionStatusLabel(session.status)} · ${sessions.progressText()}",
-                11f,
-                if (session.status == SessionStatus.PAUSED) Palette.AMBER else Palette.GREEN,
-            ).apply { setPadding(0, dp(4), 0, 0) })
-        }
-        if (plan.steps.size > 30) {
-            box.addView(tv("超过 30 个点位，运行前需要删减", 11f, Palette.RED).apply {
-                setPadding(0, dp(4), 0, 0)
-            })
-        }
-
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(10), 0, dp(4))
-        }
-        actions.addView(
-            tv(if (active) "当前方案 ✓" else "设为当前", 11f, if (active) Palette.ON_PRIMARY else Palette.MUTED).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(12), dp(8), dp(12), dp(8))
-                background = roundedRect(
-                    if (active) Palette.PRIMARY else Palette.CARD_2,
-                    dp(12),
-                    Palette.BORDER,
-                    dp(1),
-                )
-                setOnClickListener {
-                    repo.setActivePlan(if (active) null else plan.id)
-                    render()
-                }
-            },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                rightMargin = dp(8)
-            },
-        )
-        actions.addView(btn("编辑", Palette.CARD_2, Palette.TEXT) { startEdit(plan.id) }, weight(1f))
-        actions.addView(btn("运行", Palette.CARD_2, Palette.TEXT) { prepareRun(plan.id) }, weight(1f))
-        actions.addView(btn("删除", Palette.CARD_2, Palette.RED) { confirmDelete(plan) }, weight(1f))
-        box.addView(actions)
-        return box
-    }
-
-    private fun overlayCard(): View {
-        val card = card()
-        card.addView(tv("悬浮球", 13f, Palette.MUTED, true))
-        card.addView(tv(
-            if (AutomationService.running) {
-                "服务运行中。悬浮球只在目标应用前台显示：停止单击开始，运行中单击暂停，长按停止；停止时长按打开操作边栏。"
-            } else {
-                "启动服务后，悬浮球只在绑定的目标应用前台显示；主页面/桌面不会出现，不会挡住触摸。"
-            },
-            12f,
-            if (AutomationService.running) Palette.GREEN else Palette.MUTED,
-        ).apply { setPadding(0, dp(6), 0, dp(10)) })
-
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(14), 0, dp(14))
+            isClickable = true
+            setOnClickListener { planMenu(plan) }
         }
-        if (AutomationService.running) {
-            row.addView(btn("停止服务", Palette.RED, Palette.TEXT) {
-                stopService(Intent(this@MainActivity, AutomationService::class.java))
-                render()
-            }, weight(1f))
-        } else {
-            row.addView(btn("启动服务", Palette.PRIMARY, Palette.ON_PRIMARY) {
-                startOverlay(ACTION_START)
-            }, weight(1f))
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val nameRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        row.addView(btn("无障碍设置", Palette.CARD_2, Palette.TEXT) {
-            runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        }, weight(1f))
-        card.addView(row)
-        return wrap(card)
+        if (active) {
+            nameRow.addView(tv("●", 9f, Palette.PRIMARY).apply { setPadding(0, 0, dp(6), 0) })
+        }
+        nameRow.addView(tv(plan.name, 15f, Palette.TEXT, true))
+        left.addView(nameRow)
+        val target = app?.label ?: "未绑定目标应用"
+        val suffix = buildString {
+            append(target)
+            append(" · ${plan.steps.size} 点 · ${plan.loopCount} 轮")
+            if (plan.status == PlanStatus.DRAFT) append(" · 草稿")
+            if (session != null && session.status.isActive) {
+                append(" · ")
+                append(sessionStatusLabel(session.status))
+            }
+        }
+        left.addView(tv(suffix, 11f, if (app == null) Palette.AMBER else Palette.MUTED).apply {
+            setPadding(if (active) dp(16) else 0, dp(4), 0, 0)
+            maxLines = 2
+        })
+        row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(tv("⋯", 20f, Palette.DIM).apply {
+            setPadding(dp(12), 0, dp(2), dp(6))
+        })
+        return row
     }
 
-    private fun footer(): View = tv(
-        "所有方案与会话只存在本机 SQLite · App 不联网 · 无障碍服务不读取屏幕内容",
-        10.5f,
-        Palette.DIM,
-    ).apply {
-        gravity = Gravity.CENTER
-        setPadding(0, dp(18), 0, 0)
+    private fun planMenu(plan: Plan) {
+        val active = repo.read().settings.activePlanId == plan.id
+        val items = mutableListOf<String>()
+        items.add("编辑点位")
+        items.add("运行")
+        items.add(if (active) "取消当前方案" else "设为当前方案")
+        items.add("绑定 / 更换目标应用")
+        items.add("删除方案")
+        AlertDialog.Builder(this)
+            .setTitle(plan.name)
+            .setItems(items.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> startEdit(plan.id)
+                    1 -> prepareRun(plan.id)
+                    2 -> {
+                        repo.setActivePlan(if (active) null else plan.id)
+                        render()
+                    }
+                    3 -> showBindPicker(plan, thenEdit = false)
+                    4 -> confirmDelete(plan)
+                }
+            }
+            .show()
     }
+
+    private fun permissionLine(): View {
+        val a11y = accessibilityEnabled()
+        val overlay = Settings.canDrawOverlays(this)
+        val notify = NotificationManagerCompat.from(this).areNotificationsEnabled()
+        val ok = a11y && overlay && notify
+        val missing = buildList {
+            if (!a11y) add("无障碍")
+            if (!overlay) add("悬浮窗")
+            if (!notify) add("通知")
+        }
+        val text = if (ok) "权限已就绪" else "${missing.joinToString("、")}待开启"
+        return tv("● $text", 11f, if (ok) Palette.PRIMARY else Palette.AMBER).apply {
+            setPadding(0, dp(20), 0, 0)
+            setOnClickListener { permissionDialog() }
+        }
+    }
+
+    private fun permissionDialog() {
+        val a11y = accessibilityEnabled()
+        val overlay = Settings.canDrawOverlays(this)
+        val notify = NotificationManagerCompat.from(this).areNotificationsEnabled()
+        val battery = batteryIgnored()
+        val message = buildString {
+            append("无障碍：").append(if (a11y) "已开启" else "未开启").append("\n")
+            append("悬浮窗：").append(if (overlay) "已开启" else "未开启").append("\n")
+            append("通知：").append(if (notify) "已开启" else "未开启").append("\n")
+            append("电池优化：").append(if (battery) "已加入白名单" else "未加入")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("权限检查")
+            .setMessage(message)
+            .setPositiveButton("去设置") { _, _ ->
+                when {
+                    !a11y -> runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    !overlay -> runCatching {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName"),
+                            )
+                        )
+                    }
+                    !notify -> if (Build.VERSION.SDK_INT >= 33) {
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
+                    } else {
+                        openNotificationSettings()
+                    }
+                    else -> requestBatteryWhitelist()
+                }
+            }
+            .setNeutralButton("电池优化") { _, _ -> requestBatteryWhitelist() }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun moreMenu() {
+        val items = mutableListOf("权限检查", "使用风险", "新手指南")
+        if (AutomationService.running) items.add("停止服务")
+        AlertDialog.Builder(this)
+            .setItems(items.toTypedArray()) { _, which ->
+                when (items[which]) {
+                    "权限检查" -> permissionDialog()
+                    "使用风险" -> showRiskDialog()
+                    "新手指南" -> showGuideDialog()
+                    "停止服务" -> {
+                        stopService(Intent(this, AutomationService::class.java))
+                        render()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun footer(): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(22), 0, 0)
+        }
+        row.addView(tv("使用风险", 10.5f, Palette.MUTED).apply {
+            setOnClickListener { showRiskDialog() }
+        })
+        row.addView(tv("  ·  ", 10.5f, Palette.DIM))
+        row.addView(tv("新手指南", 10.5f, Palette.MUTED).apply {
+            setOnClickListener { showGuideDialog() }
+        })
+        row.addView(
+            tv("  ·  本机存储 · v${versionName()}", 10.5f, Palette.DIM),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        return row
+    }
+
+    private fun bigBtn(
+        text: String,
+        bg: Int,
+        fg: Int,
+        onClick: () -> Unit,
+    ) = btn(text, bg, fg, onClick).apply {
+        background = roundedRect(bg, dp(22))
+        minHeight = dp(46)
+        textSize = 14f
+    }
+
+    private fun bigWeight(value: Float): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(0, dp(46), value).apply { rightMargin = dp(8) }
 
     // ------------------------------------------------------------------
     // 操作
@@ -499,15 +533,12 @@ class MainActivity : AppCompatActivity() {
             .setTitle("选择目标应用")
             .setItems(labels) { _, which ->
                 val app = apps[which]
-                val size = Screen.size(this)
-                val rotation = Screen.rotation(this)
+                // 方向/尺寸不在这里记：当前前台是 outoclick，不是目标应用。
+                // 目标应用真正到前台时由 AutomationService 自动校准。
                 repo.bindPlanToApp(
                     planId = plan.id,
                     packageName = app.packageName,
                     label = app.label,
-                    rotation = rotation,
-                    displayW = size.x,
-                    displayH = size.y,
                 )
                 repo.setActivePlan(plan.id)
                 toast("已绑定：${app.label}")

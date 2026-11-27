@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Point
-import android.graphics.RectF
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -78,12 +77,13 @@ class EditorCanvas(
     private val hint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
         textSize = context.dp(13).toFloat()
-        color = Palette.MUTED
+        color = 0xCCFFFFFF.toInt()
+        setShadowLayer(context.dp(3).toFloat(), 0f, 0f, 0x99000000.toInt())
     }
-    private val hotZone = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = context.dp(1).toFloat()
-        color = 0x6610A37F
+        strokeWidth = context.dp(7).toFloat()
+        color = 0x33FFD43B
     }
 
     private val longPressRunnable = Runnable {
@@ -142,40 +142,35 @@ class EditorCanvas(
             val target = reorderMode && reorderTargetIndex == marker.index &&
                 marker.step.id != pressedStep?.id
 
-            if (selected) {
-                val w = (marker.button.width * width).toFloat()
-                    .coerceAtLeast(context.dp(24).toFloat())
-                val h = (marker.button.height * height).toFloat()
-                    .coerceAtLeast(context.dp(16).toFloat())
-                canvas.drawRoundRect(
-                    RectF(marker.x - w / 2f, marker.y - h / 2f, marker.x + w / 2f, marker.y + h / 2f),
-                    context.dp(8).toFloat(),
-                    context.dp(8).toFloat(),
-                    hotZone,
-                )
-            }
-
             val offset = labelOffset(marker, list)
             val cx = marker.x + offset.first
             val cy = marker.y + offset.second
 
-            fill.color = when {
-                selected -> Palette.PRIMARY
-                !marker.step.enabled -> 0xCC2A2A2E.toInt()
-                else -> 0xFF2B2B30.toInt()
+            if (selected) {
+                canvas.drawCircle(cx, cy, dotRadius + context.dp(3), glow)
             }
+
+            fill.color = if (marker.step.enabled) 0xB31A1A1A.toInt() else 0x661A1A1A
             canvas.drawCircle(cx, cy, dotRadius, fill)
 
             ring.color = when {
                 selected -> Palette.PRIMARY
-                target -> Palette.GREEN
-                !marker.step.enabled -> Palette.BORDER
-                else -> 0x99FFFFFF.toInt()
+                target -> Palette.PRIMARY
+                !marker.step.enabled -> 0x59FFFFFF
+                else -> 0xB3FFFFFF.toInt()
             }
-            ring.strokeWidth = if (target) context.dp(3).toFloat() else context.dp(1.5f.toInt()).coerceAtLeast(1).toFloat()
+            ring.strokeWidth = when {
+                selected -> context.dp(3).toFloat()
+                target -> context.dp(3).toFloat()
+                else -> context.dp(2).toFloat()
+            }
             canvas.drawCircle(cx, cy, dotRadius, ring)
 
-            label.color = if (selected) Palette.ON_PRIMARY else Palette.TEXT
+            label.color = when {
+                !marker.step.enabled -> 0x80FFFFFF.toInt()
+                selected -> Palette.PRIMARY
+                else -> Palette.TEXT
+            }
             val metrics = label.fontMetrics
             val baseline = cy - (metrics.ascent + metrics.descent) / 2f
             canvas.drawText(marker.step.seq.toString(), cx, baseline, label)

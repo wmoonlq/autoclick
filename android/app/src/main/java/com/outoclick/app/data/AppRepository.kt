@@ -120,23 +120,19 @@ class AppRepository(context: Context) {
         planId: String,
         packageName: String,
         label: String,
-        rotation: Int,
-        displayW: Int,
-        displayH: Int,
     ): TargetApp? = mutate { s ->
         val plan = s.plan(planId) ?: return@mutate null
         val target = s.apps.firstOrNull { it.packageName == packageName } ?: TargetApp(
             packageName = packageName,
             label = label.ifBlank { packageName },
-            boundRotation = rotation,
-            boundDisplayW = displayW,
-            boundDisplayH = displayH,
+            // 关键：绑定时前台是 outoclick 自己，不能拿它的方向当目标应用方向。
+            // 置为未校准，等目标应用真正到前台时再校准。
+            boundRotation = -1,
+            boundDisplayW = 0,
+            boundDisplayH = 0,
         ).also { s.apps.add(it) }
 
         target.label = label.ifBlank { packageName }
-        target.boundRotation = rotation
-        target.boundDisplayW = displayW
-        target.boundDisplayH = displayH
 
         val previousAppId = plan.targetAppId
         if (previousAppId != null && previousAppId != target.id && plan.steps.isNotEmpty()) {
@@ -155,6 +151,18 @@ class AppRepository(context: Context) {
         plan.targetAppId = target.id
         plan.updatedAt = System.currentTimeMillis()
         target
+    }
+
+    /** 目标应用真正在前台时，按它当前的方向/尺寸校准档案。 */
+    fun calibrateApp(appId: String, rotation: Int, displayW: Int, displayH: Int) {
+        if (displayW <= 0 || displayH <= 0) return
+        update { s ->
+            s.app(appId)?.let { app ->
+                app.boundRotation = rotation
+                app.boundDisplayW = displayW
+                app.boundDisplayH = displayH
+            }
+        }
     }
 
     fun addPoint(planId: String): Pair<Button, PlanStep>? = mutate { s ->

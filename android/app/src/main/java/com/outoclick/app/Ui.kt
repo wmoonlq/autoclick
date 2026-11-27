@@ -13,20 +13,22 @@ import android.widget.Toast
 import androidx.appcompat.widget.AppCompatButton
 
 object Palette {
-    // ChatGPT 深色：中性灰黑 + 白色主按钮 + 少量绿色状态强调。
-    const val BG = 0xFF0D0D0D.toInt()
-    const val CARD = 0xFF171717.toInt()
-    const val CARD_2 = 0xFF212121.toInt()
-    const val CARD_3 = 0xFF2A2A2A.toInt()
-    const val BORDER = 0xFF303030.toInt()
-    const val TEXT = 0xFFECECEC.toInt()
-    const val MUTED = 0xFFA3A3A3.toInt()
+    // 参考图的视觉语言：暖炭黑 + 单一黄色强调；少边框、大圆角、留白。
+    const val BG = 0xFF141414.toInt()
+    const val CARD = 0xFF242424.toInt()
+    const val CARD_2 = 0xFF2E2E2E.toInt()
+    const val CARD_3 = 0xFF383838.toInt()
+    const val BORDER = 0xFF343434.toInt()
+    const val TEXT = 0xFFF2F2F2.toInt()
+    const val MUTED = 0xFFA0A0A0.toInt()
     const val DIM = 0xFF6E6E6E.toInt()
-    const val PRIMARY = 0xFFECECEC.toInt()
-    const val ON_PRIMARY = 0xFF0D0D0D.toInt()
-    const val GREEN = 0xFF10A37F.toInt()
-    const val AMBER = 0xFFE8A33D.toInt()
-    const val RED = 0xFFE5484D.toInt()
+    const val PRIMARY = 0xFFFFD43B.toInt()
+    const val ON_PRIMARY = 0xFF171717.toInt()
+    /** 参考图里大按钮的“半透明黄底” */
+    const val PRIMARY_SOFT = 0x33FFD43B.toInt()
+    const val GREEN = 0xFFFFD43B.toInt()
+    const val AMBER = 0xFFFF9F43.toInt()
+    const val RED = 0xFFFF5A5F.toInt()
     const val VIOLET = 0xFFA78BFA.toInt()
 }
 

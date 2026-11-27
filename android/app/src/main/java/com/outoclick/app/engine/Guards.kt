@@ -104,15 +104,36 @@ object Guards {
         if (foreground != app.packageName) {
             return GuardResult.fail("请先打开目标应用：${app.label}", "TARGET_MISMATCH")
         }
-        val rotation = Screen.rotation(context)
-        if (app.boundRotation != rotation) {
-            return GuardResult.fail("屏幕方向与绑定时不一致，请恢复后再试", "ROTATION")
+        if (app.boundDisplayW <= 0 || app.boundDisplayH <= 0 || app.boundRotation < 0) {
+            return GuardResult.fail(
+                "目标应用方向尚未校准：切到目标应用后长按悬浮球 → 校准方向",
+                "UNCALIBRATED",
+            )
         }
         val size = Screen.size(context)
-        if (app.boundDisplayW > 0 && app.boundDisplayH > 0 &&
-            (app.boundDisplayW != size.x || app.boundDisplayH != size.y)
-        ) {
-            return GuardResult.fail("屏幕尺寸与绑定时不一致，请恢复后再试", "DISPLAY")
+        val boundPortrait = app.boundDisplayH >= app.boundDisplayW
+        val currentPortrait = size.y >= size.x
+        if (boundPortrait != currentPortrait) {
+            return GuardResult.fail(
+                "屏幕方向与绑定时不一致（竖屏/横屏）：请恢复方向，或在悬浮球边栏点「校准方向」",
+                "ROTATION",
+            )
+        }
+        val boundAspect = app.boundDisplayW.toDouble() / app.boundDisplayH
+        val currentAspect = size.x.toDouble() / size.y
+        val aspectDiff = kotlin.math.abs(boundAspect - currentAspect) /
+            kotlin.math.max(boundAspect, currentAspect)
+        if (aspectDiff > 0.05) {
+            return GuardResult.fail(
+                "屏幕比例与绑定时不一致：请恢复分辨率，或重新校准方向",
+                "DISPLAY",
+            )
+        }
+        // 180° 倒置：方向/比例都一样，但坐标会上下镜像，单独拦一次。
+        val currentRotation = Screen.rotation(context)
+        val rotationDelta = kotlin.math.abs(app.boundRotation - currentRotation) % 4
+        if (rotationDelta == 2) {
+            return GuardResult.fail("屏幕倒置，请把设备转回绑定时方向", "ROTATION_180")
         }
         if (state.nonTerminalSession() != null) {
             return GuardResult.fail("已有方案在运行，请先停止", "BUSY")

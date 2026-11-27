@@ -56,7 +56,7 @@ class FloatingBallView(context: Context) : View(context) {
 
     private val body = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = 0xF21A1A1E.toInt()
+        color = 0xF2242424.toInt()
     }
     private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE

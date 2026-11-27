@@ -3,13 +3,14 @@
 独立 Android App：把固定点位编排成方案，通过无障碍服务回放。
 **不需要电脑、不需要 ADB、不需要 Root。**
 
-> 当前版本：**v0.6.0（悬浮球交互重构，debug APK）**，minSdk 24 / targetSdk 34。
+> 当前版本：**v0.7.0（UI 精简 + 方向校准，debug APK）**，minSdk 24 / targetSdk 34。
 >
-> **直接下载（GitHub raw）**：https://raw.githubusercontent.com/wmoonlq/autoclick/main/releases/outoclick-0.6.0-debug.apk
-> **GitHub 文件页**：https://github.com/wmoonlq/autoclick/blob/main/releases/outoclick-0.6.0-debug.apk
-> **SHA256**：`3f5eb32ba20784d28a4e350c5a8e638b78a07196e29ae1082a24c61d15067f90`
-> 仓库内文件：[outoclick-0.6.0-debug.apk](releases/outoclick-0.6.0-debug.apk) · [SHA256 文件](releases/outoclick-0.6.0-debug.apk.sha256)
+> **直接下载（GitHub raw）**：https://raw.githubusercontent.com/wmoonlq/autoclick/main/releases/outoclick-0.7.0-debug.apk
+> **GitHub 文件页**：https://github.com/wmoonlq/autoclick/blob/main/releases/outoclick-0.7.0-debug.apk
+> **SHA256**：`ab93957089681feb5271be26eb6f50876fc50064fdbd568b846e522a43fbb28c`
+> 仓库内文件：[outoclick-0.7.0-debug.apk](releases/outoclick-0.7.0-debug.apk) · [SHA256 文件](releases/outoclick-0.7.0-debug.apk.sha256)
 > 已在 Pixel 5 模拟器 **Android 17 / API 37** 完成核心链路验证：目标应用绑定、按钮库/复用、方案编排、SQLite 落库、运行会话、暂停/继续/停止、操作边栏、force-stop 启动对账。
+> **0.7.0**：按参考图收敛 UI（暖炭黑 + 单一黄色、主页面只留状态/方案/权限、边栏 3×2 格子、描边点位）；方向改为在目标应用前台校准，守卫用竖屏/横屏 + 宽高比容差，不再精确比较 rotation/像素。
 > **0.6.0 交互**：悬浮球只在绑定的目标应用前台显示；主页面/桌面不显示，避免挡触摸。停止状态单击开始、长按打开操作边栏；运行中单击暂停、长按停止；暂停单击继续、长按停止。编辑统一收进长按边栏，不再有独立顶部工具条。
 > **0.5.1 修复**：运行前等待编辑层/菜单从 WindowManager 移除，避免第一下点击落到自己的 overlay 上；已用 Clock `+` 按钮实测打开搜索页。
 >
@@ -38,24 +39,25 @@
   - 运行中：单击暂停；长按停止
   - 暂停：单击继续；长按停止
   - 输入法弹出不会误隐藏悬浮球，也不会误暂停
-- **统一操作边栏**：编辑不再有独立顶部工具条；长按悬浮球打开边栏，编辑模式里完成添加点 / 复用点位 / 删除点 / 保存方案 / 开始运行 / 完成编辑。
+- **统一操作边栏**：编辑不再有独立顶部工具条；长按悬浮球打开 3×2 紧凑边栏，编辑模式里完成添加点 / 复用点位 / 删除点 / 保存方案 / 开始运行 / 完成编辑。
 - **主页面不挡触摸**：主页面、桌面、其他 App 上不显示任何 overlay；切回目标应用才显示悬浮球。
+- **方向校准**：绑定时不在主页面记方向；目标应用前台自动校准。守卫用竖屏/横屏 + 宽高比容差，不再精确比较 rotation/像素；边栏提供「校准方向」。
 - **通知栏控制**：运行中提供「暂停 / 停止」，暂停时提供「继续 / 停止」。
 - **随机化**：固定 ±5ms / ±3px，引擎默认开启，不暴露 UI（按测试 M6）。
 - **本机 SQLite**：`apps / buttons / plans / plan_steps / sessions / settings` 六张表；保留最近 50 条会话。
 - **旧数据迁移**：首次启动把 v0.4 的 `files/scripts/*.json` 里 TAP / LONG_PRESS 迁移成按钮+方案；SWIPE / WAIT 跳过。
-- **Google / ChatGPT 风格 UI**：中性灰黑、白色主按钮、少量绿色状态强调；应用图标同步换成准星 + 绿点。
+- **参考图风格 UI**：暖炭黑 + 单一黄色强调、大圆角、少边框；主页面只保留状态/方案/权限三块；应用图标为准星 + 黄点。
 
 ## 下载
 
 - **直接下载（GitHub raw，浏览器打开即下载）**  
-  https://raw.githubusercontent.com/wmoonlq/autoclick/main/releases/outoclick-0.6.0-debug.apk
+  https://raw.githubusercontent.com/wmoonlq/autoclick/main/releases/outoclick-0.7.0-debug.apk
 - **GitHub 文件页（可点 Download）**  
-  https://github.com/wmoonlq/autoclick/blob/main/releases/outoclick-0.6.0-debug.apk
+  https://github.com/wmoonlq/autoclick/blob/main/releases/outoclick-0.7.0-debug.apk
 - **SHA256**  
-  `3f5eb32ba20784d28a4e350c5a8e638b78a07196e29ae1082a24c61d15067f90`
+  `ab93957089681feb5271be26eb6f50876fc50064fdbd568b846e522a43fbb28c`
 
-> 如果 GitHub 直连打不开，可以直接在飞书群「opencode事务群」里下载同名 APK，或使用本机文件 `releases/outoclick-0.6.0-debug.apk`。
+> 如果 GitHub 直连打不开，可以直接在飞书群「opencode事务群」里下载同名 APK，或使用本机文件 `releases/outoclick-0.7.0-debug.apk`。
 
 ## 快速开始
 

@@ -236,6 +236,14 @@ class AutomationService : Service() {
             return
         }
 
+        // 绑定时前台是 outoclick 自己，方向不可信；目标 App 真正到前台时再校准。
+        val app = plan?.targetAppId?.let { repo.read().app(it) }
+        if (app != null && (app.boundDisplayW <= 0 || app.boundRotation < 0)) {
+            val size = Screen.size(this)
+            val rotation = Screen.rotation(this)
+            repo.calibrateApp(app.id, rotation, size.x, size.y)
+        }
+
         addBall()
         if (editorWanted && plan != null) {
             ensureEditor(plan.id)
@@ -279,7 +287,7 @@ class AutomationService : Service() {
 
     private fun addBall() {
         if (ball != null) return
-        val size = dp(54)
+        val size = dp(48)
         val screen = Screen.size(this)
         val view = FloatingBallView(this).apply {
             state = ballState()
@@ -490,6 +498,11 @@ class AutomationService : Service() {
                 openPlans()
             }
 
+            override fun onCalibrate() {
+                dismissPanel()
+                calibrateActiveApp()
+            }
+
             override fun onExit() {
                 if (sessions.isActive()) sessions.stop(StopReason.USER)
                 stopSelf()
@@ -502,7 +515,11 @@ class AutomationService : Service() {
             ballWidth = view.width,
             ballHeight = view.height,
             mode = mode,
-            status = statusText(),
+            status = when {
+                sessions.isRunning() -> "运行中"
+                sessions.isPaused() -> "已暂停"
+                else -> "就绪"
+            },
             planName = plan.name,
             targetLabel = targetLabel,
             active = true,
@@ -522,6 +539,20 @@ class AutomationService : Service() {
         if (panel?.isShowing() == true && ball != null) {
             showPanel(panelMode)
         }
+    }
+
+    private fun calibrateActiveApp() {
+        val plan = overlayPlan() ?: return
+        val app = plan.targetAppId?.let { repo.read().app(it) } ?: return
+        if (ForegroundTracker.packageName != app.packageName) {
+            toast("请先切到目标应用再校准")
+            return
+        }
+        val size = Screen.size(this)
+        val rotation = Screen.rotation(this)
+        repo.calibrateApp(app.id, rotation, size.x, size.y)
+        toast("已按当前方向校准：${size.x}×${size.y}")
+        updateNotification()
     }
 
     private fun ensureEditor(planId: String) {
